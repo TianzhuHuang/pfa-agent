@@ -3,3 +3,5 @@
 jsonschema>=4.20.0
 # Phase 2: 数据抓取与深度分析（通义千问 via DashScope OpenAI-compatible API）
 requests>=2.31.0
+# 投研面板
+streamlit>=1.30.0
