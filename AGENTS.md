@@ -4,7 +4,7 @@
 
 ### Project overview
 
-PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool for fund managers and stock traders. It filters news/data channels based on the user's portfolio holdings. Phase 2 data layer is active: news fetching (East Money) + deep analysis (通义千问 qwen-plus via DashScope).
+PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool for fund managers and stock traders. It uses a **multi-agent architecture** (Scout/Analyst/Auditor/Secretary) for portfolio-aware news fetching, deep analysis, and cross-model fact-checking.
 
 ### Running the project
 
@@ -46,6 +46,11 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 | `scripts/fetch_holding_news.py` | Fetch news for portfolio holdings (East Money API) |
 | `scripts/fetch_rss.py` | Fetch and match RSS feeds to holdings |
 | `pfa/data/store.py` | Unified data layer (FeedItem / AnalysisRecord) |
+| `agents/protocol.py` | Agent JSON communication protocol (AgentMessage) |
+| `agents/scout_agent.py` | Data Scout — wraps East Money fetcher |
+| `agents/analyst_agent.py` | Analyst — Qwen qwen-plus deep analysis |
+| `agents/auditor_agent.py` | Auditor — cross-model fact-checking (OpenAI or qwen-max) |
+| `agents/secretary_agent.py` | Secretary — orchestrates Scout→Analyst→Auditor pipeline |
 | `app/pfa_dashboard.py` | Streamlit dashboard entry point |
 | `docs/phase3-design.md` | Phase 3 knowledge base & Skill design |
 | `docs/product-scope.md` | Product goals and MVP definition |
@@ -57,4 +62,5 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 
 | Variable | Required for | Description |
 |---|---|---|
-| `DASHSCOPE_API_KEY` | `--analyze` flag | 通义千问 (DashScope) API key for deep news analysis |
+| `DASHSCOPE_API_KEY` | Analyst + Auditor fallback | 通义千问 API key (Analyst uses qwen-plus, Auditor fallback uses qwen-max) |
+| `OPENAI_API_KEY` | Auditor (preferred) | OpenAI API key for cross-model fact-checking. Optional; falls back to qwen-max |
