@@ -11,7 +11,7 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 - **Python 3.12+** is required. Dependencies are in `requirements.txt`.
 - Portfolio validation: `python3 scripts/validate_portfolio.py config/my-portfolio.json`
 - News fetching: `python3 scripts/fetch_holding_news.py` (fetches news for holdings in `config/my-portfolio.json`)
-  - With Claude analysis: `python3 scripts/fetch_holding_news.py --analyze` (requires `ANTHROPIC_API_KEY`)
+  - With Qwen analysis: `python3 scripts/fetch_holding_news.py --analyze` (requires `DASHSCOPE_API_KEY`)
   - Custom time window: `python3 scripts/fetch_holding_news.py --hours 48`
 - Raw data is stored in `data/raw/` (gitignored except `.gitkeep`).
 - There are no backend servers, frontend apps, Docker containers, or databases.
@@ -46,4 +46,4 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 
 | Variable | Required for | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `--analyze` flag | Claude API key for deep news analysis |
+| `DASHSCOPE_API_KEY` | `--analyze` flag | 通义千问 (DashScope) API key for deep news analysis |

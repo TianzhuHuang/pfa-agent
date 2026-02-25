@@ -32,7 +32,7 @@
 - **覆盖**: A 股、港股均可通过关键词搜索获取新闻
 - **特点**: 无需 API Key，返回 JSONP 格式，支持分页
 - **存储**: 原始数据存入 `data/raw/fetch_<timestamp>.json`
-- **分析**: 可选 `--analyze` 参数调用 Claude 进行深度筛选（需 `ANTHROPIC_API_KEY`）
+- **分析**: 可选 `--analyze` 参数调用通义千问 (qwen-plus) 进行深度筛选（需 `DASHSCOPE_API_KEY`）
 
 ### 3.2 搜索关键词策略
 

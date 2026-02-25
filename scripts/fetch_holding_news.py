@@ -4,7 +4,7 @@ PFA 持仓感知器 — 根据持仓标的抓取相关新闻
 
 用法:
     python scripts/fetch_holding_news.py                             # 仅抓取
-    python scripts/fetch_holding_news.py --analyze                   # 抓取 + Claude 深度分析
+    python scripts/fetch_holding_news.py --analyze                   # 抓取 + 通义千问深度分析
     python scripts/fetch_holding_news.py --portfolio config/x.json   # 指定持仓文件
     python scripts/fetch_holding_news.py --hours 48                  # 指定时间窗口
 
@@ -261,22 +261,54 @@ def save_raw(data: Dict[str, Any], prefix: str = "fetch") -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Claude deep analysis
+# DashScope / 通义千问 deep analysis (OpenAI-compatible API)
 # ---------------------------------------------------------------------------
 
-def analyze_with_claude(
+DASHSCOPE_API_URL = (
+    "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+)
+DASHSCOPE_MODEL = "qwen-plus"
+
+
+def _build_analysis_prompt(
+    holdings: List[Dict[str, Any]], all_news: List[Dict[str, Any]]
+) -> str:
+    """Assemble the analysis prompt shared by any LLM backend."""
+    holdings_desc = "、".join(
+        f"{h.get('name', h['symbol'])}({h['symbol']}.{h['market']})"
+        for h in holdings
+    )
+    news_text = json.dumps(all_news, ensure_ascii=False, indent=2)
+    return (
+        f"你是一位专业的基金经理助理。以下是用户当前持仓标的：\n"
+        f"{holdings_desc}\n\n"
+        f"以下是最近抓取到的与这些持仓相关的新闻列表（JSON 格式）：\n"
+        f"{news_text}\n\n"
+        f"请完成以下任务：\n"
+        f"1. 从上述新闻中筛选出**最值得关注的 3 条信息**。\n"
+        f"2. 对每条信息，说明：\n"
+        f"   - 涉及哪个持仓标的\n"
+        f"   - 为什么值得关注（对持仓可能产生什么影响）\n"
+        f"   - 建议的关注等级（高/中/低）\n\n"
+        f"输出要求：\n"
+        f"- 使用中文回答\n"
+        f"- 结构清晰，编号列出\n"
+        f"- 每条附上原始新闻标题和链接\n"
+        f"- 最后给出一句话总结：今天持仓整体的信息面情况"
+    ), holdings_desc
+
+
+def analyze_with_qwen(
     fetch_data: Dict[str, Any], holdings: List[Dict[str, Any]]
 ) -> Optional[Dict[str, Any]]:
-    """Call Claude to pick the top-3 most noteworthy news items."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    """Call DashScope (通义千问) to pick the top-3 most noteworthy news."""
+    api_key = os.environ.get("DASHSCOPE_API_KEY")
     if not api_key:
-        print("[WARN] ANTHROPIC_API_KEY 未设置，跳过深度分析", file=sys.stderr)
-        return None
-
-    try:
-        import anthropic
-    except ImportError:
-        print("[WARN] anthropic SDK 未安装，跳过深度分析", file=sys.stderr)
+        print(
+            "[ERROR] DASHSCOPE_API_KEY 未设置，无法进行深度分析。\n"
+            "  请设置环境变量: export DASHSCOPE_API_KEY=sk-xxx",
+            file=sys.stderr,
+        )
         return None
 
     all_news = []
@@ -298,53 +330,65 @@ def analyze_with_claude(
         print("[INFO] 无新闻可供分析")
         return None
 
-    holdings_desc = "、".join(
-        f"{h.get('name', h['symbol'])}({h['symbol']}.{h['market']})"
-        for h in holdings
-    )
-    news_text = json.dumps(all_news, ensure_ascii=False, indent=2)
+    prompt, holdings_desc = _build_analysis_prompt(holdings, all_news)
 
-    prompt = f"""你是一位专业的基金经理助理。以下是用户当前持仓标的：
-{holdings_desc}
+    print(f"\n[ANALYZE] 正在调用通义千问 ({DASHSCOPE_MODEL}) 进行深度分析...")
+    try:
+        resp = requests.post(
+            DASHSCOPE_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": DASHSCOPE_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 2000,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+    except requests.exceptions.HTTPError as e:
+        print(f"[ERROR] DashScope API 请求失败: {e}", file=sys.stderr)
+        err_body = e.response.text[:500] if e.response is not None else ""
+        if err_body:
+            print(f"  响应: {err_body}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"[ERROR] DashScope API 调用异常: {e}", file=sys.stderr)
+        return None
 
-以下是最近抓取到的与这些持仓相关的新闻列表（JSON 格式）：
-{news_text}
+    choices = body.get("choices", [])
+    if not choices:
+        print("[ERROR] DashScope 返回空结果", file=sys.stderr)
+        print(f"  原始响应: {json.dumps(body, ensure_ascii=False)[:500]}", file=sys.stderr)
+        return None
 
-请完成以下任务：
-1. 从上述新闻中筛选出**最值得关注的 3 条信息**。
-2. 对每条信息，说明：
-   - 涉及哪个持仓标的
-   - 为什么值得关注（对持仓可能产生什么影响）
-   - 建议的关注等级（高/中/低）
+    analysis_text = choices[0].get("message", {}).get("content", "")
+    usage = body.get("usage", {})
 
-输出要求：
-- 使用中文回答
-- 结构清晰，编号列出
-- 每条附上原始新闻标题和链接
-- 最后给出一句话总结：今天持仓整体的信息面情况"""
-
-    print("\n[ANALYZE] 正在调用 Claude 进行深度分析...")
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    analysis_text = message.content[0].text
     analysis_result = {
         "analysis_time": datetime.now(timezone(timedelta(hours=8))).isoformat(),
-        "model": "claude-sonnet-4-20250514",
+        "model": body.get("model", DASHSCOPE_MODEL),
         "holdings_analyzed": holdings_desc,
         "news_count_input": len(all_news),
+        "token_usage": usage,
         "analysis": analysis_text,
     }
 
     print("\n" + "=" * 60)
-    print("📊 深度分析结果")
+    print("  深度分析结果")
     print("=" * 60)
     print(analysis_text)
     print("=" * 60)
+    if usage:
+        print(
+            f"[TOKEN] prompt={usage.get('prompt_tokens', '?')}, "
+            f"completion={usage.get('completion_tokens', '?')}, "
+            f"total={usage.get('total_tokens', '?')}"
+        )
 
     return analysis_result
 
@@ -372,7 +416,7 @@ def main():
     parser.add_argument(
         "--analyze",
         action="store_true",
-        help="抓取后调用 Claude 进行深度分析",
+        help="抓取后调用通义千问 (DashScope) 进行深度分析",
     )
     args = parser.parse_args()
 
@@ -390,7 +434,7 @@ def main():
         print(f"  {r['name']}({r['symbol']}): {r['in_time_window']} 条")
 
     if args.analyze:
-        analysis = analyze_with_claude(fetch_data, holdings)
+        analysis = analyze_with_qwen(fetch_data, holdings)
         if analysis:
             save_raw(analysis, prefix="analysis")
 
