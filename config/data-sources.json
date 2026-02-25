@@ -11,6 +11,27 @@
       "name": "FT中文网",
       "category": "宏观与快讯",
       "enabled": true
+    },
+    {
+      "url": "http://localhost:1200/cls/telegraph",
+      "name": "财联社-电报",
+      "category": "宏观与快讯",
+      "enabled": true,
+      "via": "self-hosted RSSHub"
+    },
+    {
+      "url": "http://localhost:1200/gelonghui/live",
+      "name": "格隆汇-快讯",
+      "category": "宏观与快讯",
+      "enabled": true,
+      "via": "self-hosted RSSHub"
+    },
+    {
+      "url": "http://localhost:1200/jin10/flash",
+      "name": "金十快讯",
+      "category": "宏观与快讯",
+      "enabled": true,
+      "via": "self-hosted RSSHub"
     }
   ],
   "api_sources": [
@@ -33,18 +54,8 @@
   ],
   "unavailable_sources": [
     {
-      "name": "财联社-电报",
-      "reason": "API 需认证，建议自建 RSSHub",
-      "rsshub_route": "/cls/telegraph"
-    },
-    {
-      "name": "格隆汇-快讯",
-      "reason": "API 404，建议自建 RSSHub",
-      "rsshub_route": "/gelonghui/live"
-    },
-    {
       "name": "智通财经",
-      "reason": "API 405，建议自建 RSSHub",
+      "reason": "RSSHub 路由暂不可用",
       "rsshub_route": "/zhitongcaijing/recommend"
     },
     {
@@ -54,18 +65,24 @@
     },
     {
       "name": "巨潮资讯-公告",
-      "reason": "API 可访问但需精确参数",
+      "reason": "RSSHub 路由暂不可用",
       "rsshub_route": "/cninfo/announcement"
     },
     {
       "name": "港交所-公告",
-      "reason": "需解析 HTML",
+      "reason": "RSSHub 路由暂不可用",
       "rsshub_route": "/hkex/announcement"
     }
   ],
-  "twitter_handles": [],
-  "monitor_urls": [],
-  "xueqiu_user_ids": [],
-  "self_hosted_rsshub": "",
-  "_comment": "设置 self_hosted_rsshub 后，unavailable_sources 中的路由将自动启用"
+  "twitter_handles": [
+    "xinGPT"
+  ],
+  "monitor_urls": [
+    "https://xueqiu.com/S/SH600900"
+  ],
+  "xueqiu_user_ids": [
+    "9650668145"
+  ],
+  "self_hosted_rsshub": "http://localhost:1200",
+  "_comment": "self_hosted_rsshub 已配置，财联社/格隆汇/金十已通过 RSSHub 路由自动激活"
 }
