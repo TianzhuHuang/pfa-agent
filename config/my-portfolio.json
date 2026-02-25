@@ -5,8 +5,11 @@
       "symbol": "600519",
       "name": "贵州茅台",
       "market": "A",
-      "source": "manual",
-      "updated_at": "2026-02-25T15:30:06.386673+08:00"
+      "source": "ocr",
+      "updated_at": "2026-02-25T16:02:32.107008+08:00",
+      "quantity": 400,
+      "cost_price": 1457.909,
+      "account": "平安证券"
     },
     {
       "symbol": "600436",
@@ -29,6 +32,36 @@
       "source": "manual",
       "updated_at": "2026-02-25T15:30:06.386673+08:00",
       "quantity": 100.0
+    },
+    {
+      "symbol": "000858",
+      "name": "五粮液",
+      "market": "A",
+      "quantity": 600,
+      "cost_price": 144.414,
+      "source": "ocr",
+      "account": "平安证券",
+      "updated_at": "2026-02-25T16:02:32.107008+08:00"
+    },
+    {
+      "symbol": "600089",
+      "name": "特变电工",
+      "market": "A",
+      "quantity": 2000,
+      "cost_price": 24.026,
+      "source": "ocr",
+      "account": "平安证券",
+      "updated_at": "2026-02-25T16:02:32.107008+08:00"
+    },
+    {
+      "symbol": "600312",
+      "name": "平高电气",
+      "market": "A",
+      "quantity": 2700,
+      "cost_price": 17.702,
+      "source": "ocr",
+      "account": "平安证券",
+      "updated_at": "2026-02-25T16:02:32.107008+08:00"
     }
   ],
   "channels": {

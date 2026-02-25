@@ -73,8 +73,12 @@
         },
         "source": {
           "type": "string",
-          "enum": ["ocr", "manual", "browser", "excel"],
-          "description": "录入来源：ocr=截图识别, manual=手动输入, browser=Agent 浏览器读取, excel=Excel 导入"
+          "enum": ["ocr", "manual", "browser", "excel", "csv", "search"],
+          "description": "录入来源：ocr=截图识别, manual=手动输入, browser=Agent 浏览器读取, excel=Excel 导入, csv=CSV 导入, search=搜索添加"
+        },
+        "account": {
+          "type": "string",
+          "description": "券商账户名称（如：平安证券、富途、默认）"
         },
         "updated_at": {
           "type": "string",
