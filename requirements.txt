@@ -7,3 +7,4 @@ requests>=2.31.0
 streamlit>=1.30.0
 # RSS 抓取
 feedparser>=6.0.0
+playwright>=1.40.0
