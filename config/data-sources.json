@@ -1,14 +1,71 @@
 {
   "rss_urls": [
-    "https://36kr.com/feed"
+    {
+      "url": "https://36kr.com/feed",
+      "name": "36kr",
+      "category": "深度分析",
+      "enabled": true
+    },
+    {
+      "url": "http://www.ftchinese.com/rss/feed",
+      "name": "FT中文网",
+      "category": "宏观与快讯",
+      "enabled": true
+    }
   ],
-  "twitter_handles": [
-    "xinGPT"
+  "api_sources": [
+    {
+      "type": "eastmoney",
+      "name": "东方财富-个股新闻",
+      "category": "深度分析",
+      "mode": "per_stock",
+      "enabled": true,
+      "note": "自动为每个持仓标的生成搜索关键词"
+    },
+    {
+      "type": "wallstreetcn",
+      "name": "华尔街见闻-全球快讯",
+      "category": "宏观与快讯",
+      "mode": "global",
+      "enabled": true,
+      "api_url": "https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=20"
+    }
   ],
-  "monitor_urls": [
-    "https://xueqiu.com/u/1333325987"
+  "unavailable_sources": [
+    {
+      "name": "财联社-电报",
+      "reason": "API 需认证，建议自建 RSSHub",
+      "rsshub_route": "/cls/telegraph"
+    },
+    {
+      "name": "格隆汇-快讯",
+      "reason": "API 404，建议自建 RSSHub",
+      "rsshub_route": "/gelonghui/live"
+    },
+    {
+      "name": "智通财经",
+      "reason": "API 405，建议自建 RSSHub",
+      "rsshub_route": "/zhitongcaijing/recommend"
+    },
+    {
+      "name": "雪球-个股讨论",
+      "reason": "需要 Cookie 登录",
+      "rsshub_route": "/xueqiu/user/<uid>"
+    },
+    {
+      "name": "巨潮资讯-公告",
+      "reason": "API 可访问但需精确参数",
+      "rsshub_route": "/cninfo/announcement"
+    },
+    {
+      "name": "港交所-公告",
+      "reason": "需解析 HTML",
+      "rsshub_route": "/hkex/announcement"
+    }
   ],
-  "xueqiu_user_ids": [
-    "1760673340"
-  ]
+  "twitter_handles": [],
+  "monitor_urls": [],
+  "xueqiu_user_ids": [],
+  "self_hosted_rsshub": "",
+  "_comment": "设置 self_hosted_rsshub 后，unavailable_sources 中的路由将自动启用"
 }

@@ -147,19 +147,172 @@ def fetch_news_for_symbol(
     return in_window
 
 
+# ---------------------------------------------------------------------------
+# 华尔街见闻 macro feed
+# ---------------------------------------------------------------------------
+
+WALLSTREETCN_URL = "https://api-one.wallstcn.com/apiv1/content/lives"
+
+
+def _fetch_wallstreetcn(limit: int = 20) -> List[FeedItem]:
+    """Fetch macro flash news from wallstreetcn."""
+    now_iso = datetime.now(CST).isoformat()
+    try:
+        resp = requests.get(
+            WALLSTREETCN_URL,
+            params={"channel": "global-channel", "limit": limit},
+            headers={"User-Agent": "Mozilla/5.0"}, timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return []
+
+    items: List[FeedItem] = []
+    for raw in data.get("data", {}).get("items", []):
+        content = raw.get("content_text", "")[:300]
+        title = raw.get("title", "") or content[:60]
+        uri = raw.get("uri", "")
+        url = f"https://wallstreetcn.com/live/{uri}" if uri else ""
+        display_time = raw.get("display_time", 0)
+        pub_str = ""
+        if display_time:
+            from datetime import datetime as _dt
+            pub_str = _dt.fromtimestamp(display_time, tz=CST).strftime("%Y-%m-%d %H:%M:%S")
+        fid = hashlib.md5((url or title).encode()).hexdigest()[:12]
+        items.append(FeedItem(
+            id=fid, title=title, url=url,
+            published_at=pub_str, content_snippet=content,
+            source="wallstreetcn", source_id=str(raw.get("id", "")),
+            symbol="", symbol_name="", market="",
+            fetched_at=now_iso, tags=["macro"],
+        ))
+    return items
+
+
+# ---------------------------------------------------------------------------
+# RSS feed fetcher
+# ---------------------------------------------------------------------------
+
+def _fetch_rss(url: str, feed_name: str, holdings: List[Dict]) -> List[FeedItem]:
+    """Fetch and parse an RSS feed, matching entries to holdings."""
+    import feedparser as fp
+    now_iso = datetime.now(CST).isoformat()
+    try:
+        feed = fp.parse(url)
+    except Exception:
+        return []
+    if feed.bozo and not feed.entries:
+        return []
+
+    items: List[FeedItem] = []
+    for entry in feed.entries:
+        title = entry.get("title", "")
+        summary = entry.get("summary", entry.get("description", ""))
+        import re as _re
+        summary_clean = _re.sub(r"<[^>]+>", "", summary)[:300]
+        link = entry.get("link", "")
+        pub_time = ""
+        for key in ("published_parsed", "updated_parsed"):
+            tp = entry.get(key)
+            if tp:
+                try:
+                    pub_time = datetime(*tp[:6], tzinfo=CST).isoformat()
+                except Exception:
+                    pass
+                break
+        if not pub_time:
+            pub_time = entry.get("published", entry.get("updated", ""))
+
+        search_text = f"{title} {summary_clean}".lower()
+        matched_sym, matched_name, matched_mkt = "", "", ""
+        for h in holdings:
+            name = h.get("name", "")
+            for kw in _get_keywords(h["symbol"], name):
+                if kw.lower() in search_text:
+                    matched_sym = h["symbol"]
+                    matched_name = name
+                    matched_mkt = h.get("market", "")
+                    break
+            if matched_sym:
+                break
+
+        fid = hashlib.md5((link or title).encode()).hexdigest()[:12]
+        items.append(FeedItem(
+            id=fid, title=title, url=link,
+            published_at=pub_time, content_snippet=summary_clean,
+            source="rss", source_id=feed_name,
+            symbol=matched_sym, symbol_name=matched_name,
+            market=matched_mkt, fetched_at=now_iso,
+        ))
+    return items
+
+
+# ---------------------------------------------------------------------------
+# Multi-source fetch orchestration
+# ---------------------------------------------------------------------------
+
+def _load_data_sources() -> Dict:
+    ds_path = ROOT / "config" / "data-sources.json"
+    if ds_path.exists():
+        with open(ds_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
 def fetch_news_for_all(
     holdings: List[Dict], hours: int = 72
 ) -> List[FeedItem]:
-    """Fetch news for all holdings."""
+    """Fetch from ALL enabled sources: East Money per-stock + macro APIs + RSS."""
     all_items: List[FeedItem] = []
+    ds = _load_data_sources()
+
+    # 1) East Money per-stock news
     for h in holdings:
         items = fetch_news_for_symbol(
             h["symbol"], h.get("name", h["symbol"]),
             h.get("market", "?"), hours,
         )
         all_items.extend(items)
+
+    # 2) 华尔街见闻 macro
+    api_sources = ds.get("api_sources", [])
+    for src in api_sources:
+        if not src.get("enabled", True):
+            continue
+        if src.get("type") == "wallstreetcn":
+            macro_items = _fetch_wallstreetcn(20)
+            all_items.extend(macro_items)
+            time.sleep(0.3)
+
+    # 3) RSS feeds
+    rss_list = ds.get("rss_urls", [])
+    for rss in rss_list:
+        if isinstance(rss, str):
+            url, name = rss, rss
+        else:
+            if not rss.get("enabled", True):
+                continue
+            url = rss["url"]
+            name = rss.get("name", url)
+        rss_items = _fetch_rss(url, name, holdings)
+        all_items.extend(rss_items)
+        time.sleep(0.3)
+
+    # 4) Self-hosted RSSHub sources
+    rsshub_base = ds.get("self_hosted_rsshub", "")
+    if rsshub_base:
+        for unavail in ds.get("unavailable_sources", []):
+            route = unavail.get("rsshub_route", "")
+            if route:
+                rsshub_url = f"{rsshub_base.rstrip('/')}{route}"
+                rss_items = _fetch_rss(rsshub_url, unavail.get("name", route), holdings)
+                all_items.extend(rss_items)
+                time.sleep(0.3)
+
+    all_items = _dedup(all_items)
     if all_items:
-        save_feed_items(all_items, source_label="eastmoney")
+        save_feed_items(all_items, source_label="multi")
     return all_items
 
 
@@ -191,12 +344,16 @@ def handle(msg: AgentMessage) -> AgentMessage:
             items = fetch_news_for_all(
                 p.get("holdings", []), p.get("hours", 72),
             )
+            by_source: Dict[str, int] = {}
             by_symbol: Dict[str, int] = {}
             for it in items:
-                by_symbol[it.symbol] = by_symbol.get(it.symbol, 0) + 1
+                by_source[it.source] = by_source.get(it.source, 0) + 1
+                if it.symbol:
+                    by_symbol[it.symbol] = by_symbol.get(it.symbol, 0) + 1
             return make_response(
                 msg, "scout",
                 total=len(items),
+                by_source=by_source,
                 by_symbol=by_symbol,
                 items=[it.to_dict() for it in items],
             )
