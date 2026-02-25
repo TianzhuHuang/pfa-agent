@@ -1,2 +1,5 @@
-# PFA Phase 1: 持仓校验与后续数据层
+# PFA 依赖
+# Phase 1: 持仓校验
 jsonschema>=4.20.0
+# Phase 2: 数据抓取与深度分析（通义千问 via DashScope OpenAI-compatible API）
+requests>=2.31.0
