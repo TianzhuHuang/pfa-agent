@@ -327,17 +327,54 @@ def handle(msg: AgentMessage) -> AgentMessage:
 
     try:
         if action == "fetch_news":
-            items = fetch_news_for_symbol(
-                p["symbol"], p.get("name", p["symbol"]),
-                p.get("market", "?"), p.get("hours", 72),
-            )
-            if items:
-                save_feed_items(items, source_label="eastmoney")
+            symbol = p["symbol"]
+            name = p.get("name", symbol)
+            market = p.get("market", "?")
+            hours = p.get("hours", 72)
+
+            # 1) East Money per-stock
+            em_items = fetch_news_for_symbol(symbol, name, market, hours)
+
+            # 2) RSS + RSSHub + 华尔街见闻: fetch and filter for this symbol
+            holding = [{"symbol": symbol, "name": name, "market": market}]
+            ds = _load_data_sources()
+
+            rss_items: List[FeedItem] = []
+            for rss in ds.get("rss_urls", []):
+                if isinstance(rss, str):
+                    url, rname = rss, rss
+                else:
+                    if not rss.get("enabled", True):
+                        continue
+                    url, rname = rss["url"], rss.get("name", rss["url"])
+                fetched = _fetch_rss(url, rname, holding)
+                rss_items.extend(it for it in fetched if it.symbol == symbol)
+                time.sleep(0.2)
+
+            rsshub_base = ds.get("self_hosted_rsshub", "")
+            if rsshub_base:
+                for unavail in ds.get("unavailable_sources", []):
+                    route = unavail.get("rsshub_route", "")
+                    if route:
+                        rurl = f"{rsshub_base.rstrip('/')}{route}"
+                        fetched = _fetch_rss(rurl, unavail.get("name", route), holding)
+                        rss_items.extend(it for it in fetched if it.symbol == symbol)
+                        time.sleep(0.2)
+
+            all_items = _dedup(em_items + rss_items)
+            if all_items:
+                save_feed_items(all_items, source_label="eastmoney")
+
+            by_source: Dict[str, int] = {}
+            for it in all_items:
+                by_source[it.source] = by_source.get(it.source, 0) + 1
+
             return make_response(
                 msg, "scout",
-                symbol=p["symbol"],
-                count=len(items),
-                items=[it.to_dict() for it in items],
+                symbol=symbol,
+                count=len(all_items),
+                by_source=by_source,
+                items=[it.to_dict() for it in all_items],
             )
 
         elif action == "fetch_all":

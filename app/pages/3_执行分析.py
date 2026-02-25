@@ -41,10 +41,16 @@ if st.button("Scout: 抓取该标的新闻"):
         r = fetch_single_symbol(sel_h["symbol"], sel_h["name"],
                                 sel_h.get("market", "?"), hours)
     if r["status"] == "ok":
-        st.success(f"完成: {r.get('count', 0)} 条新闻")
-        for it in r.get("items", [])[:8]:
+        count = r.get('count', 0)
+        by_src = r.get('by_source', {})
+        src_detail = " + ".join(f"{s}:{n}" for s, n in by_src.items()) if by_src else "eastmoney"
+        st.success(f"完成: {count} 条新闻 ({src_detail})")
+        if count == 0:
+            st.info("所有数据源均未找到该标的相关新闻（可能该时间段内无相关报道）")
+        for it in r.get("items", [])[:10]:
+            src_tag = it.get('source', '')
             st.markdown(f"- [{it['title']}]({it['url']})  \n"
-                        f"  <small style='color:gray'>{it['published_at']}</small>",
+                        f"  <small style='color:gray'>{it['published_at']} · {src_tag}</small>",
                         unsafe_allow_html=True)
     else:
         st.error(f"失败: {r.get('error', '?')}")
