@@ -24,7 +24,9 @@
     }
   ],
   "channels": {
-    "rss_urls": [],
+    "rss_urls": [
+      "https://36kr.com/feed"
+    ],
     "xueqiu_user_ids": [],
     "twitter_handles": []
   },

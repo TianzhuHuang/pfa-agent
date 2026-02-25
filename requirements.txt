@@ -5,3 +5,5 @@ jsonschema>=4.20.0
 requests>=2.31.0
 # 投研面板
 streamlit>=1.30.0
+# RSS 抓取
+feedparser>=6.0.0
