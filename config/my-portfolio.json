@@ -112,10 +112,11 @@
   ],
   "channels": {
     "rss_urls": [
-      "https://36kr.com/feed"
+      "https://36kr.com/feed",
+      "http://www.ftchinese.com/rss/feed"
     ],
     "xueqiu_user_ids": [
-      "1760673340"
+      "9650668145"
     ],
     "twitter_handles": [
       "xinGPT"

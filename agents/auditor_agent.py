@@ -59,7 +59,7 @@ def _call_dashscope(prompt: str, api_key: str) -> Tuple[str, Dict]:
         json={"model": "qwen-max",
               "messages": [{"role": "user", "content": prompt}],
               "temperature": 0.2, "max_tokens": 1500},
-        timeout=60,
+        timeout=120,
     )
     resp.raise_for_status()
     body = resp.json()
