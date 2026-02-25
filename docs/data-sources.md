@@ -34,11 +34,35 @@
 - **存储**: 原始数据存入 `data/raw/fetch_<timestamp>.json`
 - **分析**: 可选 `--analyze` 参数调用通义千问 (qwen-plus) 进行深度筛选（需 `DASHSCOPE_API_KEY`）
 
-### 3.2 搜索关键词策略
+### 3.2 RSS 抓取器
+
+- **脚本**: `scripts/fetch_rss.py`
+- **配置**: `config/my-portfolio.json` 中的 `channels.rss_urls[]`
+- **运行**: `python3 scripts/fetch_rss.py`
+- **特点**: 使用 `feedparser` 解析 RSS/Atom feeds，通过标题/摘要关键词匹配关联到持仓标的
+- **存储**: 统一数据层 `data/store/feeds/`
+- **已验证源**: 36kr (`https://36kr.com/feed`)
+
+### 3.3 搜索关键词策略
 
 - 使用持仓标的**名称**作为主搜索词（如「贵州茅台」「中海油」）
 - 支持**别名映射**：同一标的可配置多个搜索关键词以扩大覆盖
 - 结果经**去重**和**时间窗口过滤**后存储
+
+### 3.4 统一数据层
+
+- **模块**: `pfa/data/store.py`
+- **模型**: `FeedItem`（新闻条目）、`AnalysisRecord`（分析记录）
+- **存储**: `data/store/feeds/` 和 `data/store/analyses/`
+- **查询**: 支持按标的、来源、时间窗口、日期过滤
+- 所有抓取脚本（东方财富、RSS）均通过此层统一落库
+
+### 3.5 投研面板
+
+- **启动**: `streamlit run app/pfa_dashboard.py --server.port 8501`
+- **持仓管理**: 可编辑持仓表格 + Schema 校验
+- **投研看板**: 按标的查看新闻 + 通义千问深度分析
+- **分析存档**: 按日期回溯历史分析记录
 
 ---
 
