@@ -184,13 +184,50 @@ def save_data_sources(sources: dict) -> None:
         json.dump(sources, f, ensure_ascii=False, indent=2)
     portfolio = load_portfolio()
     portfolio.setdefault("channels", {})
-    portfolio["channels"]["rss_urls"] = sources.get("rss_urls", [])
+    portfolio["channels"]["rss_urls"] = [
+        _extract_url(r) for r in sources.get("rss_urls", [])
+    ]
     portfolio["channels"]["twitter_handles"] = sources.get("twitter_handles", [])
     portfolio["channels"]["xueqiu_user_ids"] = sources.get("xueqiu_user_ids", [])
     save_portfolio(portfolio)
 
 
+def _extract_url(item) -> str:
+    """Extract URL string from an RSS item (could be str or dict)."""
+    if isinstance(item, str):
+        return item
+    return item.get("url", "")
+
+
+def add_rss_source(url: str, name: str = "", category: str = "") -> dict:
+    """Add an RSS source (structured object format)."""
+    sources = load_data_sources()
+    existing_urls = {_extract_url(r) for r in sources.get("rss_urls", [])}
+    url = url.strip()
+    if url and url not in existing_urls:
+        entry: Dict[str, Any] = {"url": url, "enabled": True}
+        if name:
+            entry["name"] = name
+        if category:
+            entry["category"] = category
+        sources.setdefault("rss_urls", []).append(entry)
+    save_data_sources(sources)
+    return sources
+
+
+def remove_rss_source(url: str) -> dict:
+    """Remove an RSS source by URL."""
+    sources = load_data_sources()
+    sources["rss_urls"] = [
+        r for r in sources.get("rss_urls", [])
+        if _extract_url(r) != url
+    ]
+    save_data_sources(sources)
+    return sources
+
+
 def add_source(source_type: str, value: str) -> dict:
+    """Add a simple string-type source (twitter, xueqiu, monitor_urls)."""
     sources = load_data_sources()
     key = source_type if source_type in sources else f"{source_type}s"
     if key not in sources:
