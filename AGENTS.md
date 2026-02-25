@@ -13,7 +13,11 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 - News fetching: `python3 scripts/fetch_holding_news.py` (East Money API)
 - RSS fetching: `python3 scripts/fetch_rss.py` (from `channels.rss_urls` in portfolio)
 - Deep analysis: `python3 scripts/fetch_holding_news.py --analyze` (requires `DASHSCOPE_API_KEY`)
-- Streamlit dashboard: `streamlit run app/pfa_dashboard.py --server.port 8501`
+- **Control Center**: `streamlit run app/pfa_dashboard.py --server.port 8501`
+  - 持仓管理: 手动添加 / CSV·JSON 批量导入 / 表格编辑
+  - 数据源配置: RSS / Twitter / URL / 雪球 动态管理 → `config/data-sources.json`
+  - 执行分析: 单标的 Scout 抓取 / 全流水线 Scout→Analyst→Auditor
+  - 分析存档: 按日期回溯历史分析
 - Data stored in `data/store/` (unified layer) and `data/raw/` (legacy).
 
 ### Linting and testing
