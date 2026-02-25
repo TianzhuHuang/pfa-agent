@@ -63,4 +63,4 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 | Variable | Required for | Description |
 |---|---|---|
 | `DASHSCOPE_API_KEY` | Analyst + Auditor fallback | 通义千问 API key (Analyst uses qwen-plus, Auditor fallback uses qwen-max) |
-| `OPENAI_API_KEY` | Auditor (preferred) | OpenAI API key for cross-model fact-checking. Optional; falls back to qwen-max |
+| `OPENAI_API_KEY` | Auditor (preferred) | OpenAI API key for cross-model fact-checking. Auto-fallback to qwen-max if key is invalid or missing |

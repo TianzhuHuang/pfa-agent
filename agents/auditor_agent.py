@@ -105,7 +105,11 @@ def audit(
     items: List[Dict],
     holdings: List[Dict],
 ) -> Dict[str, Any]:
-    """Audit an analyst report. Returns audit result dict."""
+    """Audit an analyst report. Returns audit result dict.
+
+    If the preferred backend fails, automatically falls back to the next
+    available one so the audit pipeline is resilient.
+    """
     backend, api_key = _pick_backend()
 
     holdings_desc = "、".join(
@@ -121,8 +125,17 @@ def audit(
 
     prompt = build_audit_prompt(analysis_text, news_json, holdings_desc)
 
+    text, usage = None, {}
     if backend.startswith("openai"):
-        text, usage = _call_openai(prompt, api_key)
+        try:
+            text, usage = _call_openai(prompt, api_key)
+        except Exception as e:
+            dash_key = os.environ.get("DASHSCOPE_API_KEY", "")
+            if dash_key:
+                backend = "dashscope/qwen-max(fallback)"
+                text, usage = _call_dashscope(prompt, dash_key)
+            else:
+                raise
     else:
         text, usage = _call_dashscope(prompt, api_key)
 
