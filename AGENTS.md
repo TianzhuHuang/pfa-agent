@@ -4,7 +4,7 @@
 
 ### Project overview
 
-PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool for fund managers and stock traders. It filters news/data channels based on the user's portfolio holdings. Currently in **Phase 1** (schemas, docs, and validation tooling only — no running backend or frontend services).
+PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool for fund managers and stock traders. It filters news/data channels based on the user's portfolio holdings. Phase 2 data layer is active: news fetching (East Money) + deep analysis (通义千问 qwen-plus via DashScope).
 
 ### Running the project
 
@@ -21,6 +21,13 @@ PFA (Personal Finance Agent) is an AI-powered information noise-reduction tool f
 - No dedicated linter or test framework is configured yet. Use `python3 -m py_compile <file>` for syntax checks.
 - Validate portfolio: `python3 scripts/validate_portfolio.py config/my-portfolio.json`
 - Test fetch pipeline: `python3 scripts/fetch_holding_news.py --hours 24` (should produce output in `data/raw/`).
+- Test full pipeline (fetch + analysis): `python3 scripts/fetch_holding_news.py --hours 72 --analyze`
+
+### Gotchas
+
+- The East Money search API returns JSONP; the script strips the wrapper automatically.
+- DashScope API uses OpenAI-compatible format at `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`; no `openai` SDK needed, `requests` handles it directly.
+- News for some holdings (e.g. 片仔癀) may return 0 results in short time windows; this is normal if no recent news exists. Widen `--hours` to verify.
 
 ### Security constraints (from `.cursorrules`)
 
