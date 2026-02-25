@@ -6,29 +6,41 @@
       "name": "贵州茅台",
       "market": "A",
       "source": "manual",
-      "updated_at": "2026-02-25T00:00:00+08:00"
+      "updated_at": "2026-02-25T15:30:06.386673+08:00"
     },
     {
       "symbol": "600436",
       "name": "片仔癀",
       "market": "A",
       "source": "manual",
-      "updated_at": "2026-02-25T00:00:00+08:00"
+      "updated_at": "2026-02-25T15:30:06.386673+08:00"
     },
     {
       "symbol": "00883",
       "name": "中国海洋石油",
       "market": "HK",
       "source": "manual",
-      "updated_at": "2026-02-25T00:00:00+08:00"
+      "updated_at": "2026-02-25T15:30:06.386673+08:00"
+    },
+    {
+      "symbol": "00700",
+      "name": "腾讯控股",
+      "market": "HK",
+      "source": "manual",
+      "updated_at": "2026-02-25T15:30:06.386673+08:00",
+      "quantity": 100.0
     }
   ],
   "channels": {
     "rss_urls": [
       "https://36kr.com/feed"
     ],
-    "xueqiu_user_ids": [],
-    "twitter_handles": []
+    "xueqiu_user_ids": [
+      "1760673340"
+    ],
+    "twitter_handles": [
+      "xinGPT"
+    ]
   },
   "preferences": {
     "style": "value",
