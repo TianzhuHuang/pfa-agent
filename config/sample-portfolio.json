@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "holdings": [
+    {
+      "symbol": "600519",
+      "name": "贵州茅台",
+      "cost_price": 1680.5,
+      "quantity": 100,
+      "market": "A",
+      "source": "manual"
+    },
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "cost_price": 175.2,
+      "quantity": 50,
+      "market": "US",
+      "source": "manual"
+    },
+    {
+      "symbol": "00700.HK",
+      "name": "腾讯控股",
+      "cost_price": 320,
+      "quantity": 200,
+      "market": "HK",
+      "source": "manual"
+    }
+  ],
+  "channels": {
+    "rss_urls": [],
+    "xueqiu_user_ids": [],
+    "twitter_handles": []
+  },
+  "preferences": {
+    "style": "value",
+    "frequency": "weekly",
+    "risk_tolerance": "medium"
+  }
+}

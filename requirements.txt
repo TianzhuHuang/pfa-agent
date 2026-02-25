@@ -1,0 +1,2 @@
+# PFA Phase 1: 持仓校验与后续数据层
+jsonschema>=4.20.0

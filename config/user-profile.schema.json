@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pfa.example.com/user-profile.schema.json",
+  "title": "PFA User Profile",
+  "description": "用户配置：持仓、关注渠道、投资偏好。用于规范持仓录入方式与后续 Agent 行为。",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema 版本，便于后续兼容"
+    },
+    "holdings": {
+      "type": "array",
+      "description": "用户持仓列表。支持多种录入来源：OCR、手动、浏览器、Excel。",
+      "items": { "$ref": "#/$defs/Position" }
+    },
+    "channels": {
+      "type": "object",
+      "description": "用户关注的信息渠道（RSS、雪球、Twitter 等）",
+      "properties": {
+        "rss_urls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "xueqiu_user_ids": { "type": "array", "items": { "type": "string" } },
+        "twitter_handles": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "preferences": {
+      "type": "object",
+      "description": "投资偏好与约束（可由用户或纠偏接口更新）",
+      "properties": {
+        "style": { "type": "string", "enum": ["value", "growth", "short_term", "long_term"], "description": "投资风格" },
+        "frequency": { "type": "string", "enum": ["daily", "weekly", "hold"], "description": "操作频次" },
+        "risk_tolerance": { "type": "string", "enum": ["low", "medium", "high"], "description": "风险容忍度" },
+        "constraints": { "type": "string", "description": "约束说明，如：不用杠杆、只做 A 股" }
+      }
+    }
+  },
+  "required": ["version"],
+  "$defs": {
+    "Position": {
+      "type": "object",
+      "description": "单条持仓记录",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "标的代码，如 600519、AAPL、00700.HK"
+        },
+        "name": {
+          "type": "string",
+          "description": "标的名称（可选，便于展示）"
+        },
+        "cost_price": {
+          "type": "number",
+          "minimum": 0,
+          "description": "成本价"
+        },
+        "quantity": {
+          "type": "number",
+          "minimum": 0,
+          "description": "持仓数量（股/份）"
+        },
+        "position_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "仓位占比%（可选，与 quantity 二选一或同时存在）"
+        },
+        "market": {
+          "type": "string",
+          "enum": ["A", "US", "HK", "OTHER"],
+          "description": "所属市场：A=A股, US=美股, HK=港股, OTHER=其他"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["ocr", "manual", "browser", "excel"],
+          "description": "录入来源：ocr=截图识别, manual=手动输入, browser=Agent 浏览器读取, excel=Excel 导入"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "该条记录最后更新时间（ISO 8601）"
+        }
+      },
+      "required": ["symbol", "market", "source"],
+      "additionalProperties": false
+    }
+  }
+}

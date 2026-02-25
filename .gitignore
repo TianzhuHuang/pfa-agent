@@ -1,0 +1,28 @@
+# PFA .gitignore – 遵循 docs/security-architecture.md，不提交敏感与本地数据
+
+# 敏感/本地配置（持仓、凭证不得入库）
+config/user-profile.json
+.env
+.env.*
+*.local
+
+# 本地数据（Phase 2 落库、知识库等）
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+*.egg
+
+# 系统 / 编辑器
+.DS_Store
+.idea/
+*.swp
+*.swo
+
+# 可选：Cursor 计划与缓存（若不想提交可取消注释）
+# .cursor/
