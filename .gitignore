@@ -8,6 +8,7 @@ config/user-profile.json
 
 # 本地数据（Phase 2 落库、知识库等）
 data/
+!data/raw/.gitkeep
 
 # Python
 __pycache__/
