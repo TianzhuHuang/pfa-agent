@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 360px; font-family: -apple-system, 'Segoe UI', sans-serif;
+      color: #333; background: #f8f9fa;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white; padding: 16px; text-align: center;
+    }
+    .header h1 { font-size: 16px; font-weight: 600; }
+    .header small { opacity: 0.8; font-size: 11px; }
+    .section { padding: 12px 16px; }
+    .section h3 { font-size: 13px; color: #666; margin-bottom: 8px; }
+    .status-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0; font-size: 13px;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-green { background: #34a853; }
+    .dot-gray { background: #999; }
+    .dot-red { background: #ea4335; }
+    input[type="text"] {
+      width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+      font-size: 13px; margin-bottom: 6px;
+    }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .tag {
+      background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 12px;
+      font-size: 12px; display: flex; align-items: center; gap: 4px;
+    }
+    .tag .remove { cursor: pointer; color: #999; font-weight: bold; }
+    .tag .remove:hover { color: #ea4335; }
+    button {
+      width: 100%; padding: 10px; border: none; border-radius: 6px;
+      font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 6px;
+    }
+    .btn-primary { background: #1a73e8; color: white; }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-secondary { background: #e8e8e8; color: #333; }
+    .btn-secondary:hover { background: #d0d0d0; }
+    .divider { border-top: 1px solid #eee; margin: 8px 0; }
+    #status-text { font-size: 12px; color: #666; text-align: center; padding: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>PFA 雪球助手</h1>
+    <small>自动抓取雪球数据 → PFA 投研助手</small>
+  </div>
+
+  <div class="section">
+    <h3>状态</h3>
+    <div class="status-row">
+      <span><span class="status-dot" id="dot-server"></span>PFA 服务</span>
+      <span id="server-status">检测中...</span>
+    </div>
+    <div class="status-row">
+      <span><span class="status-dot" id="dot-xueqiu"></span>雪球登录</span>
+      <span id="xueqiu-status">检测中...</span>
+    </div>
+    <div class="status-row">
+      <span>上次抓取</span>
+      <span id="last-fetch">—</span>
+    </div>
+    <div class="status-row">
+      <span>抓取数量</span>
+      <span id="last-count">—</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <h3>监控的雪球用户</h3>
+    <div class="tag-list" id="user-tags"></div>
+    <input type="text" id="new-user" placeholder="输入雪球用户 ID (如 9650668145)">
+
+    <h3 style="margin-top:8px">监控的个股</h3>
+    <div class="tag-list" id="symbol-tags"></div>
+    <input type="text" id="new-symbol" placeholder="输入股票代码 (如 SH600519, HK00883)">
+
+    <h3 style="margin-top:8px">监控 URL</h3>
+    <div class="tag-list" id="url-tags"></div>
+    <input type="text" id="new-url" placeholder="输入雪球 URL">
+  </div>
+
+  <div class="section">
+    <button class="btn-primary" id="btn-fetch">立即抓取</button>
+    <button class="btn-secondary" id="btn-save">保存配置</button>
+  </div>
+
+  <div id="status-text"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

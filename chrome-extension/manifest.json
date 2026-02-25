@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "PFA 雪球助手",
+  "version": "1.0",
+  "description": "PFA 投研助手 — 自动抓取雪球用户动态和个股讨论",
+  "permissions": ["cookies", "storage", "alarms"],
+  "host_permissions": [
+    "https://xueqiu.com/*",
+    "https://stock.xueqiu.com/*",
+    "http://localhost:8501/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
