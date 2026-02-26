@@ -95,7 +95,7 @@ def _call_ai(messages: List[Dict]) -> str:
         return f"AI 服务暂不可用: {e}"
 
 
-def _handle_trade_command(user_input: str, holdings: List[Dict]) -> Optional[str]:
+def _handle_trade_command(user_input: str, holdings: List[Dict], user: Optional[Dict] = None) -> Optional[str]:
     """Check if input is a trade command. Returns reply or None."""
     from pfa.ai_portfolio_assistant import parse_portfolio_command
     from agents.secretary_agent import load_portfolio, save_portfolio, add_memo
@@ -146,7 +146,7 @@ def _handle_trade_command(user_input: str, holdings: List[Dict]) -> Optional[str
     return None
 
 
-def render_expert_chat(holdings: List[Dict], val: Dict):
+def render_expert_chat(holdings: List[Dict], val: Dict, user: Optional[Dict] = None):
     """Render the AI Expert chat panel."""
     # Init chat with context-aware welcome
     if "expert_chat" not in st.session_state:

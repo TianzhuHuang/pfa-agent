@@ -33,10 +33,14 @@ if not user.get("user_id"):
 bell = render_bell_icon()
 render_topnav(active="portfolio", user_email=user.get("email", ""))
 
-# --- Load portfolio ---
-from agents.secretary_agent import load_portfolio
-portfolio = load_portfolio()
-holdings = portfolio.get("holdings", [])
+# --- Load portfolio (Supabase for cloud users, local JSON for admin) ---
+holdings = []
+if user.get("mode") == "supabase":
+    from pfa.data.supabase_store import load_holdings
+    holdings = load_holdings(user["user_id"])
+else:
+    from agents.secretary_agent import load_portfolio
+    holdings = load_portfolio().get("holdings", [])
 
 # --- Empty state: onboarding ---
 if not holdings:
@@ -55,7 +59,6 @@ if not holdings:
 
     st.markdown("### 搜索添加")
     from pfa.stock_search import search_stock
-    from agents.secretary_agent import add_holding
     q = st.text_input("搜索股票", placeholder="茅台、00700、AAPL")
     if q and len(q.strip()) >= 1:
         results = search_stock(q)
@@ -64,7 +67,13 @@ if not holdings:
                 ca, cb = st.columns([4, 1])
                 ca.markdown(f"**{r['code']}** {r['name']} · {r['market_raw']}")
                 if cb.button("添加", key=f"add_{r['code']}"):
-                    add_holding(r["code"], r["name"], r["market"], 0, 0, 0, "search")
+                    new_h = {"symbol": r["code"], "name": r["name"], "market": r["market"], "source": "search"}
+                    if user.get("mode") == "supabase":
+                        from pfa.data.supabase_store import save_holdings
+                        save_holdings(user["user_id"], [new_h])
+                    else:
+                        from agents.secretary_agent import add_holding
+                        add_holding(r["code"], r["name"], r["market"], 0, 0, 0, "search")
                     st.rerun()
     st.stop()
 
@@ -134,4 +143,4 @@ with col_left:
 
 # --- RIGHT: AI Expert Chat ---
 with col_right:
-    render_expert_chat(holdings, val)
+    render_expert_chat(holdings, val, user)
