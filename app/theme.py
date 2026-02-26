@@ -105,17 +105,20 @@ def inject_theme():
     .feed-item .snippet {{ font-size: 12px; color: {sub_text}; margin-top: 4px; }}
     .feed-item .meta {{ font-size: 11px; color: {'#555' if dark else '#aaa'}; margin-top: 4px; }}
 
-    /* Data tables — force unified dark/light */
-    .stDataFrame, [data-testid="stDataFrame"] {{ background: {card_bg} !important; }}
-    .stDataFrame table {{ background: {card_bg} !important; color: {text} !important; }}
-    .stDataFrame th {{ background: {'#222' if dark else '#f0f2f6'} !important; color: {text} !important; font-size: 12px; font-weight: 600; border-bottom: 1px solid {border} !important; }}
-    .stDataFrame td {{ background: {card_bg} !important; color: {text} !important; font-size: 13px; border-bottom: 1px solid {border} !important; }}
-    .stDataFrame tr:hover td {{ background: {'#252525' if dark else '#f5f5f5'} !important; }}
+    /* Data tables — unified dark/light */
+    .stDataFrame, [data-testid="stDataFrame"],
+    [data-testid="stDataFrameResizable"],
+    [data-testid="stDataFrame"] > div,
+    .stDataFrame iframe {{ background: {card_bg} !important; }}
     [data-testid="stDataFrameResizable"] {{ border: 1px solid {border} !important; border-radius: 8px !important; overflow: hidden; }}
-    .stDataFrame [data-testid="StyledLinkCell"] {{ color: {COLORS['accent'] if dark else COLORS['bullish']} !important; }}
+    /* Glide data grid (internal table renderer) */
+    [data-testid="stDataFrame"] canvas + div {{ background: {card_bg} !important; }}
+    [data-testid="stDataFrame"] [role="grid"] {{ background: {card_bg} !important; }}
+    [data-testid="stDataFrame"] [data-testid="glideDataEditor"] {{ background: {card_bg} !important; }}
 
     /* Data editor */
     [data-testid="stDataEditor"] {{ background: {card_bg} !important; border: 1px solid {border} !important; border-radius: 8px !important; }}
+    [data-testid="stDataEditor"] [role="grid"] {{ background: {card_bg} !important; }}
 
     /* Expander */
     [data-testid="stExpander"] {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; }}

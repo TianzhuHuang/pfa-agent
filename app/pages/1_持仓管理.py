@@ -1,4 +1,4 @@
-"""持仓大盘 (Portfolio Command Center) — 总资产 + 多账户 + AI 录入"""
+"""持仓大盘 — 左侧持仓 + 右侧 Ask PFA 对话 (NBOT 风格)"""
 
 import json, sys
 from datetime import datetime, timedelta, timezone
@@ -12,8 +12,7 @@ import streamlit as st
 import pandas as pd
 from app.theme import inject_theme, theme_toggle, COLORS
 from agents.secretary_agent import (
-    load_portfolio, save_portfolio, validate_portfolio,
-    add_holding, update_holdings_bulk,
+    load_portfolio, save_portfolio, add_holding, update_holdings_bulk,
     parse_csv_holdings, parse_json_holdings,
 )
 from pfa.stock_search import search_stock
@@ -27,131 +26,193 @@ CST = timezone(timedelta(hours=8))
 dark = st.session_state.get("dark_mode", True)
 portfolio = load_portfolio()
 holdings = portfolio.get("holdings", [])
+card_bg = COLORS["bg_card_dark"] if dark else COLORS["bg_card_light"]
+border = COLORS["border_dark"] if dark else COLORS["border_light"]
+text_c = COLORS["text_dark"] if dark else COLORS["text_light"]
+sub_c = "#999" if dark else "#666"
 
-# ===================================================================
-# Global Net Worth Banner
-# ===================================================================
 st.header("持仓大盘")
 
+# ===================================================================
+# Top metrics row
+# ===================================================================
 if holdings:
-    # Calculate portfolio value
     try:
         from pfa.portfolio_valuation import calculate_portfolio_value, get_fx_rates, get_realtime_prices
-        with st.spinner("获取实时行情..."):
+        with st.spinner("获取行情..."):
             fx = get_fx_rates()
             prices = get_realtime_prices(holdings)
             val = calculate_portfolio_value(holdings, prices, fx)
-
-        # Top metrics row
-        c1, c2, c3, c4 = st.columns(4)
 
         total_v = val["total_value_cny"]
         total_pnl = val["total_pnl_cny"]
         total_pct = val["total_pnl_pct"]
         pnl_color = COLORS["positive"] if total_pnl >= 0 else COLORS["negative"]
+        sign = "+" if total_pnl >= 0 else ""
 
-        with c1:
-            st.markdown(f"""<div class="pfa-card">
-<div style="font-size:12px; color:{'#999' if dark else '#666'};">总资产 (CNY)</div>
-<div style="font-size:28px; font-weight:800;">¥{total_v:,.0f}</div>
-</div>""", unsafe_allow_html=True)
-
-        with c2:
-            sign = "+" if total_pnl >= 0 else ""
-            st.markdown(f"""<div class="pfa-card" style="border-left:4px solid {pnl_color};">
-<div style="font-size:12px; color:{'#999' if dark else '#666'};">总盈亏</div>
-<div style="font-size:24px; font-weight:700; color:{pnl_color};">{sign}¥{total_pnl:,.0f}</div>
-<div style="font-size:14px; color:{pnl_color};">{sign}{total_pct:.2f}%</div>
-</div>""", unsafe_allow_html=True)
-
-        with c3:
-            st.markdown(f"""<div class="pfa-card">
-<div style="font-size:12px; color:{'#999' if dark else '#666'};">标的 / 账户</div>
-<div style="font-size:24px; font-weight:700;">{val['holding_count']} / {val['account_count']}</div>
-</div>""", unsafe_allow_html=True)
-
-        with c4:
-            mkt_text = " · ".join(f"{k}:{v['count']}" for k, v in val["by_market"].items())
-            fx_text = " · ".join(f"{k}:{v:.2f}" for k, v in fx.items() if k != "CNY")
-            st.markdown(f"""<div class="pfa-card">
-<div style="font-size:12px; color:{'#999' if dark else '#666'};">市场分布</div>
-<div style="font-size:16px; font-weight:600;">{mkt_text}</div>
-<div style="font-size:11px; color:{'#666' if dark else '#999'};">汇率: {fx_text}</div>
-</div>""", unsafe_allow_html=True)
-
-        # ===================================================================
-        # Holdings by Account
-        # ===================================================================
-        st.markdown("---")
-        st.subheader("按账户查看")
-
-        for acct_name, acct_data in val["by_account"].items():
-            acct_pnl = acct_data["pnl"]
-            pnl_sign = "+" if acct_pnl >= 0 else ""
-            acct_color = COLORS["positive"] if acct_pnl >= 0 else COLORS["negative"]
-
-            with st.expander(
-                f"**{acct_name}** · ¥{acct_data['value']:,.0f} · "
-                f"{pnl_sign}¥{acct_pnl:,.0f} · {len(acct_data['holdings'])} 标的",
-                expanded=True,
-            ):
-                rows = []
-                for h in acct_data["holdings"]:
-                    pnl_str = f"{'+' if h['pnl_cny']>=0 else ''}{h['pnl_cny']:,.0f}"
-                    pct_str = f"{'+' if h['pnl_pct']>=0 else ''}{h['pnl_pct']:.1f}%"
-                    rows.append({
-                        "代码": h["symbol"],
-                        "名称": h.get("name", ""),
-                        "市场": h.get("market", ""),
-                        "现价": h.get("current_price", ""),
-                        "成本": h.get("cost_price", ""),
-                        "数量": h.get("quantity", ""),
-                        "市值(CNY)": f"¥{h['value_cny']:,.0f}",
-                        "盈亏": pnl_str,
-                        "涨跌%": pct_str,
-                    })
-                if rows:
-                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
+        mc = st.columns(4)
+        mc[0].markdown(f'<div class="pfa-card"><div style="font-size:11px;color:{sub_c};">总资产 CNY</div><div style="font-size:26px;font-weight:800;">¥{total_v:,.0f}</div></div>', unsafe_allow_html=True)
+        mc[1].markdown(f'<div class="pfa-card" style="border-left:4px solid {pnl_color};"><div style="font-size:11px;color:{sub_c};">总盈亏</div><div style="font-size:22px;font-weight:700;color:{pnl_color};">{sign}¥{total_pnl:,.0f}</div><div style="font-size:13px;color:{pnl_color};">{sign}{total_pct:.2f}%</div></div>', unsafe_allow_html=True)
+        mc[2].markdown(f'<div class="pfa-card"><div style="font-size:11px;color:{sub_c};">标的 / 账户</div><div style="font-size:22px;font-weight:700;">{val["holding_count"]} / {val["account_count"]}</div></div>', unsafe_allow_html=True)
+        mkt_t = " · ".join(f"{k}:{v['count']}" for k, v in val["by_market"].items())
+        mc[3].markdown(f'<div class="pfa-card"><div style="font-size:11px;color:{sub_c};">市场分布</div><div style="font-size:15px;font-weight:600;">{mkt_t}</div></div>', unsafe_allow_html=True)
     except Exception as e:
-        st.warning(f"实时估值暂不可用: {e}")
-        # Fallback: simple table
-        df = pd.DataFrame(holdings)
-        cols = [c for c in ["symbol", "name", "market", "cost_price", "quantity", "account"] if c in df.columns]
-        st.dataframe(df[cols], use_container_width=True, hide_index=True)
-else:
-    st.info("暂无持仓。使用下方 AI 助理或其他方式添加。")
+        val = None
+        st.warning(f"行情暂不可用: {e}")
 
 # ===================================================================
-# AI Portfolio Assistant (Ask NBot style)
+# Main layout: Left = Holdings | Right = Ask PFA
 # ===================================================================
-st.markdown("---")
-st.subheader("Ask PFA · 记账助理")
+col_left, col_right = st.columns([3, 2])
 
-# Chat history
-if "portfolio_chat" not in st.session_state:
-    st.session_state["portfolio_chat"] = [
-        {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以用自然语言管理持仓，例如：\n- 「平安证券加仓 500 股中海油，价格 21.5」\n- 「腾讯控股数量改为 200」\n- 「卖出全部上海机场」"}
-    ]
+# --- LEFT: Holdings by account ---
+with col_left:
+    st.markdown("### 持仓明细")
 
-for msg in st.session_state["portfolio_chat"]:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    if holdings and val:
+        for acct_name, acct_data in val["by_account"].items():
+            apnl = acct_data["pnl"]
+            ac = COLORS["positive"] if apnl >= 0 else COLORS["negative"]
+            ps = "+" if apnl >= 0 else ""
 
-ai_input = st.chat_input("输入持仓操作...")
+            with st.expander(f"**{acct_name}** · ¥{acct_data['value']:,.0f} · {ps}¥{apnl:,.0f}", expanded=True):
+                # Build HTML table for full dark theme control
+                html = f'<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+                html += f'<tr style="border-bottom:1px solid {border};">'
+                for col in ["代码", "名称", "现价", "成本", "数量", "盈亏", "%"]:
+                    html += f'<th style="text-align:right;padding:6px 8px;color:{sub_c};font-weight:600;font-size:11px;">{col}</th>'
+                html += '</tr>'
 
-if ai_input:
-    st.session_state["portfolio_chat"].append({"role": "user", "content": ai_input})
-    with st.chat_message("user"):
-        st.markdown(ai_input)
+                for h in acct_data["holdings"]:
+                    pnl = h["pnl_cny"]
+                    pct = h["pnl_pct"]
+                    pc = COLORS["positive"] if pnl >= 0 else COLORS["negative"]
+                    ps2 = "+" if pnl >= 0 else ""
+                    html += f'<tr style="border-bottom:1px solid {border};">'
+                    html += f'<td style="padding:6px 8px;color:{COLORS["accent"] if dark else COLORS["bullish"]};font-weight:600;">{h["symbol"]}</td>'
+                    html += f'<td style="padding:6px 8px;color:{text_c};">{escape(h.get("name",""))}</td>'
+                    html += f'<td style="padding:6px 8px;text-align:right;color:{text_c};">{h.get("current_price","—")}</td>'
+                    html += f'<td style="padding:6px 8px;text-align:right;color:{sub_c};">{h.get("cost_price","—")}</td>'
+                    html += f'<td style="padding:6px 8px;text-align:right;color:{text_c};">{h.get("quantity","—")}</td>'
+                    html += f'<td style="padding:6px 8px;text-align:right;color:{pc};font-weight:600;">{ps2}{pnl:,.0f}</td>'
+                    html += f'<td style="padding:6px 8px;text-align:right;color:{pc};">{ps2}{pct:.1f}%</td>'
+                    html += '</tr>'
+                html += '</table>'
+                st.markdown(html, unsafe_allow_html=True)
+    elif holdings:
+        for h in holdings:
+            st.text(f"{h['symbol']} {h.get('name','')} {h.get('quantity','')}")
+    else:
+        st.info("暂无持仓。使用右侧 AI 助理添加。")
 
-    with st.chat_message("assistant"):
+    # Quick add tabs
+    st.markdown("---")
+    tab_s, tab_ocr, tab_f = st.tabs(["智能搜索", "截图识别", "文件导入"])
+
+    with tab_s:
+        q = st.text_input("搜索股票", placeholder="茅台、00700、AAPL", key="ss")
+        if q and len(q.strip()) >= 1:
+            results = search_stock(q)
+            if results:
+                opts = {f"{r['code']}  {r['name']}  ({r['market_raw']})": r for r in results}
+                sel = st.radio("选择", list(opts.keys()), key="ssel")
+                s = opts[sel]
+                with st.form("sadd"):
+                    c1, c2, c3 = st.columns(3)
+                    cost = c1.number_input("成本价", min_value=0.0, step=0.01, format="%.2f")
+                    qty = c2.number_input("数量", min_value=0, step=100)
+                    acct = c3.text_input("账户", value="默认")
+                    if st.form_submit_button("添加", type="primary"):
+                        add_holding(s["code"], s["name"], s["market"], cost, int(qty), 0, "search")
+                        if acct.strip() != "默认":
+                            p = load_portfolio()
+                            for hh in p["holdings"]:
+                                if hh["symbol"] == s["code"] and not hh.get("account"):
+                                    hh["account"] = acct.strip()
+                            save_portfolio(p)
+                        st.rerun()
+
+    with tab_ocr:
+        img = st.file_uploader("上传截图", type=["png","jpg","jpeg","webp"], key="oi")
+        oa = st.text_input("账户", placeholder="平安证券", key="oa")
+        if img:
+            st.image(img, use_container_width=True)
+            if st.button("AI 识别", type="primary", key="og"):
+                with st.spinner("识别中..."):
+                    r = extract_holdings_from_image(img.read(), "image/png")
+                if r["status"] == "ok" and r["holdings"]:
+                    st.session_state["ocr_data"] = r["holdings"]
+                    st.success(f"{len(r['holdings'])} 条")
+                else:
+                    st.error(r.get("error","失败"))
+        ocr = st.session_state.get("ocr_data")
+        if ocr:
+            ed = st.data_editor(pd.DataFrame(ocr), num_rows="dynamic", use_container_width=True, hide_index=True)
+            if st.button("导入", type="primary", key="oimp"):
+                p = load_portfolio()
+                now = datetime.now(CST).isoformat()
+                for _, row in ed.iterrows():
+                    sym = str(row.get("symbol","")).strip()
+                    if not sym: continue
+                    e = {"symbol":sym, "name":str(row.get("name","")), "market":row.get("market","A"), "source":"ocr", "updated_at":now}
+                    for k in ("cost_price","quantity"):
+                        v = row.get(k)
+                        if v and float(v)>0: e[k]=float(v)
+                    if oa.strip(): e["account"]=oa.strip()
+                    p.setdefault("holdings",[]).append(e)
+                save_portfolio(p)
+                del st.session_state["ocr_data"]
+                st.rerun()
+
+    with tab_f:
+        up = st.file_uploader("CSV / JSON", type=["csv","json"], key="fu")
+        if up:
+            raw = up.read().decode("utf-8")
+            try:
+                parsed = parse_csv_holdings(raw) if up.name.endswith(".csv") else parse_json_holdings(raw)
+                if parsed:
+                    st.dataframe(pd.DataFrame(parsed), use_container_width=True, hide_index=True)
+                    if st.button("导入", type="primary", key="fimp"):
+                        p = load_portfolio()
+                        p.get("holdings",[]).extend(parsed)
+                        update_holdings_bulk(p["holdings"])
+                        st.rerun()
+            except Exception as e:
+                st.error(str(e))
+
+# --- RIGHT: Ask PFA (NBOT style) ---
+with col_right:
+    st.markdown(f"""
+<div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+    <span style="font-size:20px;">✨</span>
+    <span style="font-size:17px; font-weight:700; color:{text_c};">Ask PFA</span>
+    <span style="background:{COLORS['accent']}; color:#000; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">Live</span>
+</div>""", unsafe_allow_html=True)
+
+    # Chat container
+    if "portfolio_chat" not in st.session_state:
+        st.session_state["portfolio_chat"] = [
+            {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以对我说：\n- 「加仓 500 股中海油 价格 21.5」\n- 「腾讯控股数量改为 300」\n- 「删除上海机场」"}
+        ]
+
+    # Render chat bubbles
+    chat_container = st.container(height=450)
+    with chat_container:
+        for msg in st.session_state["portfolio_chat"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+    # Input
+    ai_input = st.chat_input("管理持仓...")
+
+    if ai_input:
+        st.session_state["portfolio_chat"].append({"role": "user", "content": ai_input})
+
         with st.spinner("解析中..."):
             result = parse_portfolio_command(ai_input)
 
         if "error" in result:
-            reply = f"❌ 解析失败: {result['error']}"
-            st.markdown(reply)
+            reply = f"❌ {result['error']}"
         else:
             action = result.get("action", "?")
             sym = result.get("symbol", "?")
@@ -160,12 +221,8 @@ if ai_input:
             price = result.get("price", 0)
             acct = result.get("account", "")
             market = result.get("market", "A")
-            conf = result.get("confidence", 0)
-            action_text = {"add": "买入", "remove": "卖出", "update": "更新"}.get(action, action)
-
-            # Auto-execute with confirmation message
-            p = load_portfolio()
             now_str = datetime.now(CST).isoformat()
+            p = load_portfolio()
 
             if action == "add":
                 entry = {"symbol": sym, "name": name, "market": market,
@@ -175,7 +232,7 @@ if ai_input:
                 if acct: entry["account"] = acct
                 p.setdefault("holdings", []).append(entry)
                 save_portfolio(p)
-                reply = f"✅ **已买入** {name}({sym}) {qty}股" + (f" @{price}" if price else "") + (f" → {acct}" if acct else "")
+                reply = f"✅ 已买入 **{name}**({sym}) {qty}股" + (f" @{price}" if price else "")
 
             elif action == "update":
                 updated = False
@@ -188,119 +245,20 @@ if ai_input:
                         break
                 if updated:
                     save_portfolio(p)
-                    reply = f"✅ **已更新** {name}({sym})"
-                    if qty == 0:
-                        reply += " → 数量清零"
-                    else:
-                        reply += f" → 数量 {qty}" + (f", 价格 {price}" if price else "")
+                    reply = f"✅ 已更新 **{name}**({sym}) → 数量 {qty}" + (f" 价格 {price}" if price else "")
                 else:
-                    reply = f"⚠️ 未找到 {name}({sym})，无法更新"
+                    reply = f"⚠️ 未找到 {name}({sym})"
 
             elif action == "remove":
                 before = len(p.get("holdings", []))
                 p["holdings"] = [h for h in p.get("holdings", []) if h["symbol"] != sym]
                 if len(p["holdings"]) < before:
                     save_portfolio(p)
-                    reply = f"✅ **已删除** {name}({sym})"
+                    reply = f"✅ 已删除 **{name}**({sym})"
                 else:
                     reply = f"⚠️ 未找到 {name}({sym})"
             else:
                 reply = f"❓ 未知操作: {action}"
 
-            st.markdown(reply)
-            st.caption(f"置信度: {conf}% · {action_text} · {sym} · {market}")
-
         st.session_state["portfolio_chat"].append({"role": "assistant", "content": reply})
-    st.rerun()
-
-# ===================================================================
-# Quick Actions: Search / Upload / CSV
-# ===================================================================
-st.markdown("---")
-tab_search, tab_screenshot, tab_upload = st.tabs(["智能搜索", "截图识别", "文件导入"])
-
-with tab_search:
-    query = st.text_input("搜索股票", placeholder="代码或名称，如：茅台、00700、AAPL",
-                          key="stock_search")
-    if query and len(query.strip()) >= 1:
-        results = search_stock(query)
-        if results:
-            options = {f"{r['code']}  {r['name']}  ({r['market_raw']})": r for r in results}
-            sel = st.radio("选择", list(options.keys()), key="search_sel")
-            s = options[sel]
-            with st.form("search_add", clear_on_submit=False):
-                c1, c2, c3 = st.columns(3)
-                cost = c1.number_input("成本价", min_value=0.0, step=0.01, format="%.2f")
-                qty = c2.number_input("数量", min_value=0, step=100)
-                acct = c3.text_input("账户", value="默认")
-                if st.form_submit_button("添加", type="primary"):
-                    add_holding(s["code"], s["name"], s["market"], cost, int(qty), 0, "search")
-                    if acct.strip() and acct.strip() != "默认":
-                        p = load_portfolio()
-                        for h in p["holdings"]:
-                            if h["symbol"] == s["code"] and not h.get("account"):
-                                h["account"] = acct.strip()
-                        save_portfolio(p)
-                    st.success(f"已添加 {s['name']}")
-                    st.rerun()
-
-with tab_screenshot:
-    st.caption("上传券商截图，AI 自动提取持仓")
-    img = st.file_uploader("上传截图", type=["png", "jpg", "jpeg", "webp"], key="ocr_img")
-    ocr_acct = st.text_input("账户名称", placeholder="如：平安证券", key="ocr_acct")
-    if img:
-        st.image(img, use_container_width=True)
-        if st.button("AI 识别", type="primary", key="ocr_go"):
-            with st.spinner("识别中..."):
-                r = extract_holdings_from_image(img.read(),
-                    f"image/{img.type.split('/')[-1]}" if img.type else "image/png")
-            if r["status"] == "ok" and r["holdings"]:
-                st.session_state["ocr_data"] = r["holdings"]
-                st.success(f"识别到 {len(r['holdings'])} 条")
-            else:
-                st.error(r.get("error", "识别失败"))
-
-    ocr = st.session_state.get("ocr_data")
-    if ocr:
-        edited = st.data_editor(pd.DataFrame(ocr), num_rows="dynamic",
-                                use_container_width=True, hide_index=True)
-        if st.button("导入持仓", type="primary", key="ocr_import"):
-            now = datetime.now(CST).isoformat()
-            p = load_portfolio()
-            for _, row in edited.iterrows():
-                sym = str(row.get("symbol", "")).strip()
-                if not sym:
-                    continue
-                entry = {"symbol": sym, "name": str(row.get("name", "")),
-                         "market": row.get("market", "A"), "source": "ocr",
-                         "updated_at": now}
-                for k in ("cost_price", "quantity"):
-                    v = row.get(k)
-                    if v and float(v) > 0:
-                        entry[k] = float(v)
-                if ocr_acct.strip():
-                    entry["account"] = ocr_acct.strip()
-                p.setdefault("holdings", []).append(entry)
-            save_portfolio(p)
-            del st.session_state["ocr_data"]
-            st.success("已导入")
-            st.rerun()
-
-with tab_upload:
-    st.caption("CSV 或 JSON 批量导入")
-    uploaded = st.file_uploader("上传文件", type=["csv", "json"], key="file_up")
-    if uploaded:
-        raw = uploaded.read().decode("utf-8")
-        try:
-            parsed = (parse_csv_holdings(raw) if uploaded.name.endswith(".csv")
-                      else parse_json_holdings(raw))
-            if parsed:
-                st.dataframe(pd.DataFrame(parsed), use_container_width=True, hide_index=True)
-                if st.button("导入", type="primary", key="file_go"):
-                    p = load_portfolio()
-                    p.get("holdings", []).extend(parsed)
-                    update_holdings_bulk(p["holdings"])
-                    st.success(f"已导入 {len(parsed)} 条")
-                    st.rerun()
-        except Exception as e:
-            st.error(str(e))
+        st.rerun()
