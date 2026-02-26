@@ -94,6 +94,51 @@ def remove_holding(symbol: str) -> dict:
     return portfolio
 
 
+# ===================================================================
+# Investment Memo (投资备忘录)
+# ===================================================================
+
+def add_memo(symbol: str, action: str, text: str,
+             quantity_change: float = 0, price: float = 0) -> bool:
+    """Add a memo entry to a holding's memo_history."""
+    portfolio = load_portfolio()
+    now = datetime.now(CST).isoformat()
+    entry = {"time": now, "action": action, "text": text}
+    if quantity_change:
+        entry["quantity_change"] = quantity_change
+    if price:
+        entry["price"] = price
+
+    for h in portfolio.get("holdings", []):
+        if h["symbol"] == symbol:
+            h.setdefault("memo_history", []).insert(0, entry)
+            save_portfolio(portfolio)
+            return True
+    return False
+
+
+def get_memos(symbol: str) -> List[Dict]:
+    """Get all memos for a symbol, newest first."""
+    portfolio = load_portfolio()
+    for h in portfolio.get("holdings", []):
+        if h["symbol"] == symbol:
+            return h.get("memo_history", [])
+    return []
+
+
+def get_all_memos() -> List[Dict]:
+    """Get all memos across all holdings, newest first."""
+    portfolio = load_portfolio()
+    all_memos = []
+    for h in portfolio.get("holdings", []):
+        sym = h["symbol"]
+        name = h.get("name", sym)
+        for m in h.get("memo_history", []):
+            all_memos.append({**m, "symbol": sym, "name": name})
+    all_memos.sort(key=lambda x: x.get("time", ""), reverse=True)
+    return all_memos
+
+
 def update_holdings_bulk(holdings: List[Dict]) -> dict:
     """Replace all holdings with a new list."""
     portfolio = load_portfolio()

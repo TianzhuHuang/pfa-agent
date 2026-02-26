@@ -84,6 +84,21 @@
           "type": "string",
           "format": "date-time",
           "description": "该条记录最后更新时间（ISO 8601）"
+        },
+        "memo_history": {
+          "type": "array",
+          "description": "投资备忘录：记录每次操作的思考逻辑",
+          "items": {
+            "type": "object",
+            "properties": {
+              "time": { "type": "string", "format": "date-time" },
+              "action": { "type": "string", "enum": ["buy", "sell", "hold", "watch", "note"] },
+              "text": { "type": "string", "description": "备忘内容：为什么做这个决策" },
+              "quantity_change": { "type": "number", "description": "数量变动（正=买入，负=卖出）" },
+              "price": { "type": "number", "description": "操作价格" }
+            },
+            "required": ["time", "action", "text"]
+          }
         }
       },
       "required": ["symbol", "market", "source"],

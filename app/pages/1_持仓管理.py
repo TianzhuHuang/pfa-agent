@@ -105,6 +105,38 @@ with col_left:
     else:
         st.info("暂无持仓。使用右侧 AI 助理添加。")
 
+    # ---------------------------------------------------------------
+    # Memo Timeline
+    # ---------------------------------------------------------------
+    from agents.secretary_agent import get_all_memos
+    all_memos = get_all_memos()
+    if all_memos:
+        st.markdown("---")
+        st.markdown("### 投资备忘录")
+        action_icons = {"buy": "🔴", "sell": "🟢", "hold": "⚪", "watch": "👁", "note": "📝"}
+        for m in all_memos[:10]:
+            icon = action_icons.get(m.get("action", "note"), "📝")
+            t = m.get("time", "")[:16]
+            sym = m.get("symbol", "")
+            name = m.get("name", sym)
+            text = escape(m.get("text", ""))
+            qty_c = m.get("quantity_change", 0)
+            price = m.get("price", 0)
+            detail = ""
+            if qty_c:
+                detail += f" · {'+'if qty_c>0 else ''}{qty_c:.0f}股"
+            if price:
+                detail += f" @{price}"
+
+            st.markdown(f"""<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid {border};">
+<div style="font-size:20px;padding-top:2px;">{icon}</div>
+<div style="flex:1;">
+<div style="font-size:13px;font-weight:600;color:{text_c};">{escape(name)} <span style="color:{sub_c};font-weight:400;">{sym}{detail}</span></div>
+<div style="font-size:13px;color:{text_c};margin-top:2px;">{text}</div>
+<div style="font-size:11px;color:{sub_c};margin-top:4px;">{t}</div>
+</div>
+</div>""", unsafe_allow_html=True)
+
     # Quick add tabs
     st.markdown("---")
     tab_s, tab_ocr, tab_f = st.tabs(["智能搜索", "截图识别", "文件导入"])
@@ -192,7 +224,7 @@ with col_right:
     # Chat container
     if "portfolio_chat" not in st.session_state:
         st.session_state["portfolio_chat"] = [
-            {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以对我说：\n- 「加仓 500 股中海油 价格 21.5」\n- 「腾讯控股数量改为 300」\n- 「删除上海机场」"}
+            {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以对我说：\n- 「加仓 500 股中海油 价格 21.5」\n- 「腾讯控股数量改为 300」\n- 「删除上海机场」\n- 「记录：看好茅台渠道改革长期逻辑」"}
         ]
 
     # Render chat bubbles
@@ -257,6 +289,18 @@ with col_right:
                     reply = f"✅ 已删除 **{name}**({sym})"
                 else:
                     reply = f"⚠️ 未找到 {name}({sym})"
+
+            elif action == "memo":
+                from agents.secretary_agent import add_memo
+                memo_text = result.get("text", ai_input)
+                memo_action = result.get("memo_action", "note")
+                ok = add_memo(sym, memo_action, memo_text, qty, price)
+                if ok:
+                    icon = {"buy":"🔴","sell":"🟢","hold":"⚪","watch":"👁","note":"📝"}.get(memo_action,"📝")
+                    reply = f"{icon} 已记录 **{name}**({sym}) 备忘：{memo_text[:50]}"
+                else:
+                    reply = f"⚠️ 未找到 {name}({sym})，请先添加持仓"
+
             else:
                 reply = f"❓ 未知操作: {action}"
 
