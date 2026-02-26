@@ -89,26 +89,41 @@ if not holdings:
                 st.caption("未找到匹配的股票")
 
     with tab_ocr:
-        st.caption("上传券商持仓截图，AI 自动提取")
+        st.caption("上传券商持仓截图，AI 自动提取持仓数据")
         img = st.file_uploader("上传截图", type=["png","jpg","jpeg","webp"], key="onb_img")
         if img:
-            st.image(img, use_container_width=True)
-            if st.button("AI 识别", type="primary", key="onb_ocr"):
-                with st.spinner("识别中..."):
-                    r = extract_holdings_from_image(img.read(), "image/png")
+            # Read bytes first before displaying
+            img_bytes = img.getvalue()
+            # Show small preview
+            st.image(img_bytes, width=300, caption="预览")
+            mime = img.type or "image/png"
+
+            if st.button("🤖 AI 识别持仓", type="primary", use_container_width=True, key="onb_ocr"):
+                with st.spinner("通义千问 VL 识别中，请稍候..."):
+                    r = extract_holdings_from_image(img_bytes, mime)
                 if r["status"] == "ok" and r["holdings"]:
                     st.session_state["onb_ocr"] = r["holdings"]
-                    st.success(f"识别到 {len(r['holdings'])} 条")
+                    st.success(f"✅ 识别到 {len(r['holdings'])} 条持仓")
+                elif r.get("raw_response"):
+                    st.warning("识别结果可能不完整")
+                    st.text_area("模型输出", r["raw_response"], height=100)
                 else:
-                    st.error(r.get("error", "识别失败"))
+                    st.error(f"识别失败: {r.get('error', '未知错误')}")
+
         ocr = st.session_state.get("onb_ocr")
         if ocr:
+            st.markdown("---")
+            st.markdown("**识别结果（可编辑）**")
             ed = st.data_editor(pd.DataFrame(ocr), num_rows="dynamic", use_container_width=True, hide_index=True)
-            if st.button("导入全部", type="primary", key="onb_ocr_imp"):
+            c_imp, c_clr = st.columns(2)
+            if c_imp.button("✅ 确认导入", type="primary", use_container_width=True, key="onb_ocr_imp"):
                 rows = [dict(row) for _, row in ed.iterrows() if str(row.get("symbol","")).strip()]
                 for r in rows:
                     r["source"] = "ocr"
                 _save_new_holdings(rows)
+                del st.session_state["onb_ocr"]
+                st.rerun()
+            if c_clr.button("❌ 清除", use_container_width=True, key="onb_ocr_clr"):
                 del st.session_state["onb_ocr"]
                 st.rerun()
 
