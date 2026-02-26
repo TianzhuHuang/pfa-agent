@@ -108,10 +108,9 @@ val = calculate_portfolio_value(holdings, prices, fx)
 total_v = val["total_value_cny"]
 total_pnl = val["total_pnl_cny"]
 total_pct = val["total_pnl_pct"]
+from app.theme_v2 import COLORS
 pnl_color = COLORS["up"] if total_pnl >= 0 else COLORS["down"]
 sign = "+" if total_pnl >= 0 else ""
-
-from app.theme_v2 import COLORS
 
 # --- Top: Total Wealth ---
 c1, c2, c3, c4 = st.columns(4)
