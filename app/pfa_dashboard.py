@@ -151,7 +151,7 @@ with col_holdings:
 
     for acct_name, acct_data in val["by_account"].items():
         # Account group header
-        table_html += f'<tr><td colspan="8" style="padding:12px;font-weight:600;color:#999;font-size:12px;border-bottom:1px solid #E9ECEF;background:#FAFBFC;">{escape(acct_name)} · ¥{acct_data["value"]:,.0f}</td></tr>'
+        table_html += f'<tr><td colspan="8" style="padding:12px;font-weight:600;color:#5F6368;font-size:12px;border-bottom:1px solid #2D3139;background:#1A1D26;letter-spacing:0.3px;">{escape(acct_name)} · ¥{acct_data["value"]:,.0f}</td></tr>'
 
         for h in acct_data["holdings"]:
             pnl = h["pnl_cny"]
@@ -194,7 +194,8 @@ with col_chat:
     chat_box = st.container(height=400)
     with chat_box:
         for msg in st.session_state["expert_chat"]:
-            with st.chat_message(msg["role"]):
+            avatar = "🤖" if msg["role"] == "assistant" else "👤"
+            with st.chat_message(msg["role"], avatar=avatar):
                 st.markdown(msg["content"])
 
     user_input = st.chat_input("和 AI 专家对话...")
