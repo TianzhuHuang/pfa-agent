@@ -1,4 +1,4 @@
-"""PFA 投研助手 — 主入口"""
+"""PFA 投研助手 — 主入口 (st.navigation 控制侧栏)"""
 
 import sys
 from pathlib import Path
@@ -6,11 +6,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import streamlit as st
-from app.theme import inject_theme, theme_toggle
-from app.auth import render_auth_sidebar, get_user
 
 st.set_page_config(page_title="PFA 投研助手", page_icon="📊",
                    layout="wide", initial_sidebar_state="expanded")
+
+from app.theme import inject_theme, theme_toggle
+from app.auth import render_auth_sidebar
 
 inject_theme()
 
@@ -24,16 +25,22 @@ if not user.get("user_id"):
     st.info("请在左侧登录或注册以开始使用。")
     st.stop()
 
-st.title("PFA 投研助手")
-mode_badge = "☁️ 云端" if user.get("mode") == "supabase" else "📦 本地"
-st.caption(f"{mode_badge} · {user.get('email', '')}")
-
-st.markdown("""
+# Check if we should show ticker detail (via query param)
+params = st.query_params
+if params.get("page") == "ticker" and params.get("symbol"):
+    # Inline render ticker detail
+    exec(open(str(ROOT / "app" / "ticker_detail.py")).read())
+else:
+    mode_badge = "☁️ 云端" if user.get("mode") == "supabase" else "📦 本地"
+    st.title("PFA 投研助手")
+    st.caption(f"{mode_badge} · {user.get('email', '')}")
+    st.markdown("""
 | 页面 | 说明 |
 |---|---|
 | **持仓管理** | 智能搜索 / 截图识别 / 批量导入 / 多账户 |
 | **综合早报** | 市场情绪 + 今日必读 + 持仓异动 |
 | **分析中心** | Scout → Analyst → Auditor + 历史存档 |
-| **个股深度** | 基本面 + Feed 流 + Ask Agent |
 | **数据源配置** | RSS / API / RSSHub / 健康检查 |
+
+*点击持仓表中的股票代码可查看个股深度分析*
 """)

@@ -89,7 +89,7 @@ with col_left:
                     ps2 = "+" if pnl >= 0 else ""
                     td = f'padding:8px 10px;white-space:nowrap;'
                     html += f'<tr style="border-bottom:1px solid {border};">'
-                    ticker_link = f'/{urllib.parse.quote("个股深度")}?symbol={h["symbol"]}'
+                    ticker_link = f'/?page=ticker&symbol={h["symbol"]}'
                     html += f'<td style="{td}"><a href="{ticker_link}" target="_self" style="color:{COLORS["accent"] if dark else COLORS["bullish"]};font-weight:600;text-decoration:none;">{h["symbol"]}</a></td>'
                     html += f'<td style="{td}color:{text_c};">{escape(h.get("name",""))}</td>'
                     html += f'<td style="{td}text-align:right;color:{text_c};">{h.get("current_price","—")}</td>'

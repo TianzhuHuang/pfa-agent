@@ -1,37 +1,45 @@
 """
-PFA 登录/注册组件 — Session 持久化 + 自动检测模式
+PFA 登录/注册组件 — Cookie 持久化 + Supabase Auth
 """
 
 import streamlit as st
+import extra_streamlit_components as stx
 from pfa.data.supabase_store import is_available, sign_in, sign_up, sign_out
+
+COOKIE_KEY = "pfa_refresh_token"
+
+
+def _get_cookie_manager():
+    return stx.CookieManager(key="pfa_cookies")
 
 
 def _save_session(user_data: dict):
-    """Save session to session_state + query_params (survives reload)."""
+    """Save session to session_state + cookie."""
     st.session_state["pfa_user"] = user_data
-    if user_data.get("refresh_token"):
-        st.query_params["_rt"] = user_data["refresh_token"]
+    try:
+        cm = _get_cookie_manager()
+        if user_data.get("refresh_token"):
+            cm.set(COOKIE_KEY, user_data["refresh_token"],
+                   key="set_cookie", max_age=30*24*3600)  # 30 days
+    except Exception:
+        pass
 
 
 def get_user() -> dict:
-    """Get current user. Returns {user_id, email, mode} or empty.
-
-    Persistence: stores refresh_token in query_params so login survives
-    page reloads and tab closes (as long as the URL is preserved).
-    """
+    """Get current user. Tries: session_state → cookie → empty."""
     if not is_available():
         return {"user_id": "admin", "email": "本地模式", "mode": "local"}
 
-    # Check session_state first
+    # 1. Check session_state
     session = st.session_state.get("pfa_user")
     if session and session.get("user_id"):
         return session
 
-    # Try to restore session from query_params (survives page reload)
-    params = st.query_params
-    rt = params.get("_rt", "")
-    if rt:
-        try:
+    # 2. Try restore from cookie
+    try:
+        cm = _get_cookie_manager()
+        rt = cm.get(COOKIE_KEY)
+        if rt:
             from pfa.data.supabase_store import _get_client
             client = _get_client()
             if client:
@@ -44,17 +52,16 @@ def get_user() -> dict:
                         "refresh_token": resp.session.refresh_token,
                         "mode": "supabase",
                     }
-                    _save_session(user_data)
+                    st.session_state["pfa_user"] = user_data
                     return user_data
-        except Exception:
-            # Token expired, clear it
-            st.query_params.pop("_rt", None)
+    except Exception:
+        pass
 
     return {}
 
 
 def render_auth_sidebar():
-    """Render login/register in sidebar. Returns user dict."""
+    """Render login/register in sidebar."""
     user = get_user()
 
     if user.get("mode") == "local":
@@ -66,13 +73,16 @@ def render_auth_sidebar():
         if st.sidebar.button("退出", use_container_width=True):
             sign_out()
             st.session_state.pop("pfa_user", None)
-            st.query_params.pop("_rt", None)
+            try:
+                cm = _get_cookie_manager()
+                cm.delete(COOKIE_KEY, key="del_cookie")
+            except Exception:
+                pass
             st.rerun()
         return user
 
-    # Login/Register form
+    # Login/Register
     st.sidebar.markdown("### 🔐 登录")
-
     tab_login, tab_reg = st.sidebar.tabs(["登录", "注册"])
 
     with tab_login:
