@@ -10,6 +10,9 @@ sys.path.insert(0, str(ROOT))
 
 import streamlit as st
 import pandas as pd
+from app.theme import inject_theme, theme_toggle
+inject_theme()
+theme_toggle()
 from agents.secretary_agent import (
     load_portfolio, save_portfolio, validate_portfolio,
     add_holding, remove_holding, update_holdings_bulk,
