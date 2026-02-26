@@ -77,11 +77,11 @@ def get_user() -> dict:
 
 
 def render_login_page():
-    """Render a centered, clean login/register page."""
+    """Render centered dark login page."""
     st.markdown("""
-<div class="v2-login-box">
+<div class="login-box">
     <div class="logo">PFA</div>
-    <div class="subtitle">投研助手 · 持仓感知 · 信息降噪</div>
+    <div class="sub">Portfolio Intelligence · AI-Powered</div>
 </div>""", unsafe_allow_html=True)
 
     # Centered form

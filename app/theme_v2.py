@@ -1,207 +1,225 @@
 """
-PFA v2 视觉系统 — Sharesight 风格
+PFA v2 设计系统 — 专业金融终端风格
 
-设计原则:
-  - 白底极淡灰 (#F8F9FA) 背景
-  - 白色纯色卡片容器
-  - Inter / Helvetica 字体
-  - 极细线条表格
-  - 色彩仅用于涨跌 (红 #dc3545 / 绿 #28a745)
-  - 克制、专业、数据驱动
+参考: Sharesight + Bloomberg + Robinhood
+规范: docs/ui-design-system.md
 """
 
 import streamlit as st
+from html import escape
 
-# A-share: red = up, green = down
+# Design tokens
 COLORS = {
-    "up": "#dc3545",
-    "down": "#28a745",
-    "neutral": "#6c757d",
-    "bg": "#F8F9FA",
-    "card": "#FFFFFF",
-    "text": "#333333",
-    "text_secondary": "#666666",
-    "text_muted": "#999999",
-    "border": "#E9ECEF",
-    "accent": "#0066FF",
-    "accent_light": "#E8F0FE",
+    # Dark mode (primary)
+    "bg": "#0F1116",
+    "bg2": "#1A1D26",
+    "bg3": "#242832",
+    "border": "#2D3139",
+    "text": "#E8EAED",
+    "text2": "#9AA0A6",
+    "text3": "#5F6368",
+    # Semantic
+    "up": "#E53935",
+    "down": "#43A047",
+    "accent": "#4285F4",
+    "accent_bg": "rgba(66,133,244,0.12)",
+    "warning": "#FB8C00",
+    "info": "#29B6F6",
 }
 
 
 def inject_v2_theme():
-    """Inject Sharesight-style global CSS."""
     st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    /* Global reset */
-    .stApp {
-        background-color: #F8F9FA;
-        font-family: 'Inter', -apple-system, 'Helvetica Neue', sans-serif;
-    }
-    * { font-family: 'Inter', -apple-system, 'Helvetica Neue', sans-serif !important; }
-
-    /* Hide default Streamlit sidebar completely */
+    /* === GLOBAL === */
+    .stApp { background: #0F1116 !important; }
+    * { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif !important; }
     [data-testid="stSidebar"] { display: none !important; }
     .stApp > header { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
 
-    /* Typography */
-    h1 { font-size: 24px; font-weight: 700; color: #333; letter-spacing: -0.3px; margin-bottom: 4px; }
-    h2 { font-size: 18px; font-weight: 600; color: #333; }
-    h3 { font-size: 15px; font-weight: 600; color: #333; }
-    p, span, li, td, th, label, div { color: #333; }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0F1116; }
+    ::-webkit-scrollbar-thumb { background: #2D3139; border-radius: 3px; }
 
-    /* Cards */
-    .v2-card {
-        background: #FFFFFF;
-        border: 1px solid #E9ECEF;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 16px;
-    }
-    .v2-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    /* === TYPOGRAPHY === */
+    h1 { font-size: 20px !important; font-weight: 600 !important; color: #E8EAED !important; margin-bottom: 4px !important; }
+    h2 { font-size: 16px !important; font-weight: 600 !important; color: #E8EAED !important; }
+    h3 { font-size: 14px !important; font-weight: 600 !important; color: #9AA0A6 !important; text-transform: uppercase; letter-spacing: 0.5px; }
+    p, span, li, div, label { color: #E8EAED; }
+    a { color: #4285F4 !important; text-decoration: none !important; }
+    a:hover { text-decoration: underline !important; }
 
-    /* Metric cards */
-    .v2-metric {
-        background: #FFFFFF;
-        border: 1px solid #E9ECEF;
-        border-radius: 8px;
+    /* === METRIC CARD === */
+    .metric-card {
+        background: #1A1D26; border: 1px solid #2D3139; border-radius: 8px;
         padding: 16px 20px;
-        text-align: left;
     }
-    .v2-metric .label { font-size: 12px; color: #999; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-    .v2-metric .value { font-size: 28px; font-weight: 700; color: #333; margin-top: 4px; }
-    .v2-metric .change { font-size: 14px; font-weight: 600; margin-top: 2px; }
+    .metric-card .label {
+        font-size: 11px; font-weight: 500; color: #5F6368;
+        text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;
+    }
+    .metric-card .value {
+        font-size: 28px; font-weight: 700; color: #E8EAED;
+        font-variant-numeric: tabular-nums;
+    }
+    .metric-card .change { font-size: 14px; font-weight: 600; margin-top: 2px; }
+    .metric-card .up { color: #E53935; }
+    .metric-card .down { color: #43A047; }
 
-    /* Tables — Sharesight style: thin horizontal lines only */
-    .v2-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    .v2-table th {
-        text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600;
-        color: #999; text-transform: uppercase; letter-spacing: 0.5px;
-        border-bottom: 2px solid #E9ECEF; background: transparent;
+    /* === HOLDINGS TABLE === */
+    .fin-table { width: 100%; border-collapse: collapse; }
+    .fin-table th {
+        font-size: 11px; font-weight: 600; color: #5F6368;
+        text-transform: uppercase; letter-spacing: 0.5px;
+        padding: 8px 12px; text-align: left;
+        border-bottom: 1px solid #2D3139;
     }
-    .v2-table th.right { text-align: right; }
-    .v2-table td {
-        padding: 12px; border-bottom: 1px solid #F0F0F0; color: #333;
-        vertical-align: middle; white-space: nowrap;
+    .fin-table th.r { text-align: right; }
+    .fin-table td {
+        font-size: 14px; color: #E8EAED; padding: 10px 12px;
+        border-bottom: 1px solid rgba(45,49,57,0.5);
+        font-variant-numeric: tabular-nums; white-space: nowrap;
     }
-    .v2-table td.right { text-align: right; }
-    .v2-table tr:hover td { background: #FAFBFC; }
-    .v2-table .sym { color: #0066FF; font-weight: 600; cursor: pointer; text-decoration: none; }
-    .v2-table .sym:hover { text-decoration: underline; }
-    .v2-table .up { color: #dc3545; font-weight: 600; }
-    .v2-table .down { color: #28a745; font-weight: 600; }
+    .fin-table td.r { text-align: right; }
+    .fin-table tr:hover td { background: #242832; }
+    .fin-table .sym { color: #4285F4; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .fin-table .sym:hover { text-decoration: underline; }
+    .fin-table .up { color: #E53935; }
+    .fin-table .down { color: #43A047; }
+    .fin-table .muted { color: #5F6368; }
+    .fin-table .group-row td {
+        font-size: 12px; font-weight: 600; color: #5F6368;
+        padding: 12px; background: rgba(26,29,38,0.8);
+        border-bottom: 1px solid #2D3139;
+    }
 
-    /* Top navigation bar */
-    .v2-topnav {
-        background: #FFFFFF;
-        border-bottom: 1px solid #E9ECEF;
-        padding: 12px 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+    /* === TOP NAV === */
+    .topnav {
+        background: #1A1D26; border-bottom: 1px solid #2D3139;
+        padding: 0 24px; display: flex; align-items: center;
+        justify-content: space-between; height: 52px;
         margin: -1rem -1rem 24px -1rem;
         position: sticky; top: 0; z-index: 999;
     }
-    .v2-topnav .logo { font-size: 18px; font-weight: 700; color: #333; }
-    .v2-topnav .nav-links { display: flex; gap: 24px; }
-    .v2-topnav .nav-links a {
-        color: #666; text-decoration: none; font-size: 14px; font-weight: 500;
-        padding: 6px 0; border-bottom: 2px solid transparent;
-    }
-    .v2-topnav .nav-links a:hover { color: #333; }
-    .v2-topnav .nav-links a.active { color: #0066FF; border-bottom-color: #0066FF; }
-    .v2-topnav .user-info { font-size: 13px; color: #999; }
-
-    /* Chat bubble styling */
-    [data-testid="stChatMessage"] {
-        background: #FFFFFF !important;
-        border: 1px solid #E9ECEF;
-        border-radius: 12px;
-        margin-bottom: 8px;
-    }
-    [data-testid="stChatInput"] textarea {
-        border: 1px solid #E9ECEF !important;
-        border-radius: 8px !important;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        border: 1px solid #E9ECEF;
-        border-radius: 6px;
-        font-weight: 500;
-    }
-    .stButton > button[kind="primary"] {
-        background: #0066FF;
-        color: white;
-        border: none;
-    }
-
-    /* Inputs */
-    .stTextInput > div > div > input {
-        border: 1px solid #E9ECEF !important;
-        border-radius: 6px !important;
-    }
-
-    /* Expander */
-    [data-testid="stExpander"] {
-        background: #FFFFFF;
-        border: 1px solid #E9ECEF;
-        border-radius: 8px;
-    }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] { background: transparent; gap: 0; }
-    .stTabs [data-baseweb="tab"] {
-        color: #666; font-weight: 500; padding: 8px 16px;
+    .topnav .logo { font-size: 18px; font-weight: 700; color: #E8EAED; letter-spacing: -0.5px; }
+    .topnav .nav { display: flex; gap: 0; height: 52px; }
+    .topnav .nav a {
+        color: #9AA0A6; text-decoration: none !important; font-size: 13px; font-weight: 500;
+        padding: 0 16px; display: flex; align-items: center; height: 100%;
         border-bottom: 2px solid transparent;
     }
-    .stTabs [aria-selected="true"] {
-        color: #0066FF !important; border-bottom-color: #0066FF !important;
+    .topnav .nav a:hover { color: #E8EAED; background: rgba(255,255,255,0.04); }
+    .topnav .nav a.on { color: #4285F4; border-bottom-color: #4285F4; }
+    .topnav .user { font-size: 12px; color: #5F6368; }
+    .topnav .user a { color: #E53935 !important; margin-left: 8px; }
+
+    /* === CARDS === */
+    .card {
+        background: #1A1D26; border: 1px solid #2D3139; border-radius: 8px;
+        padding: 20px; margin-bottom: 16px;
     }
 
-    /* Data frames */
-    [data-testid="stDataFrame"] { background: #FFFFFF !important; border: 1px solid #E9ECEF !important; border-radius: 8px !important; }
-
-    /* Empty state */
-    .v2-empty {
-        text-align: center; padding: 60px 20px;
-        color: #999; font-size: 16px;
+    /* === CHAT === */
+    [data-testid="stChatMessage"] {
+        background: #1A1D26 !important; border: 1px solid #2D3139 !important;
+        border-radius: 12px !important; margin-bottom: 8px !important;
     }
-    .v2-empty .icon { font-size: 48px; margin-bottom: 16px; }
-    .v2-empty .title { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 8px; }
-
-    /* Login page */
-    .v2-login-box {
-        max-width: 400px; margin: 80px auto; background: #FFFFFF;
-        border: 1px solid #E9ECEF; border-radius: 12px; padding: 40px;
+    [data-testid="stChatInput"] textarea {
+        background: #1A1D26 !important; color: #E8EAED !important;
+        border: 1px solid #2D3139 !important; border-radius: 8px !important;
     }
-    .v2-login-box .logo { text-align: center; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-    .v2-login-box .subtitle { text-align: center; color: #999; font-size: 14px; margin-bottom: 32px; }
+    [data-testid="stChatInput"] button { background: #4285F4 !important; }
+
+    /* === INPUTS === */
+    .stTextInput > div > div > input {
+        background: #1A1D26 !important; color: #E8EAED !important;
+        border: 1px solid #2D3139 !important; border-radius: 6px !important;
+    }
+    .stTextInput > div > div > input::placeholder { color: #5F6368 !important; }
+    .stNumberInput > div > div > input { background: #1A1D26 !important; color: #E8EAED !important; }
+    .stSelectbox > div > div { background: #1A1D26 !important; color: #E8EAED !important; }
+
+    /* === BUTTONS === */
+    .stButton > button {
+        background: transparent; color: #E8EAED; border: 1px solid #2D3139;
+        border-radius: 6px; font-weight: 500;
+    }
+    .stButton > button:hover { background: #242832; border-color: #4285F4; }
+    .stButton > button[kind="primary"] {
+        background: #4285F4 !important; color: white !important; border: none !important;
+    }
+    .stButton > button[kind="primary"]:hover { background: #3367D6 !important; }
+
+    /* === TABS === */
+    .stTabs [data-baseweb="tab-list"] { background: transparent; }
+    .stTabs [data-baseweb="tab"] { color: #9AA0A6; font-weight: 500; }
+    .stTabs [aria-selected="true"] { color: #4285F4 !important; }
+
+    /* === EXPANDER === */
+    [data-testid="stExpander"] {
+        background: #1A1D26 !important; border: 1px solid #2D3139 !important; border-radius: 8px !important;
+    }
+    [data-testid="stExpander"] summary { color: #E8EAED !important; }
+
+    /* === DATA FRAMES === */
+    [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+        background: #1A1D26 !important; border: 1px solid #2D3139 !important; border-radius: 8px !important;
+    }
+
+    /* === LOGIN === */
+    .login-box {
+        max-width: 400px; margin: 100px auto;
+        background: #1A1D26; border: 1px solid #2D3139; border-radius: 12px;
+        padding: 40px; text-align: center;
+    }
+    .login-box .logo { font-size: 28px; font-weight: 700; color: #E8EAED; margin-bottom: 4px; }
+    .login-box .sub { font-size: 13px; color: #5F6368; margin-bottom: 32px; }
+
+    /* === EMPTY STATE === */
+    .empty-state { text-align: center; padding: 80px 20px; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
+    .empty-state .title { font-size: 20px; font-weight: 600; color: #E8EAED; margin-bottom: 8px; }
+    .empty-state .desc { font-size: 14px; color: #5F6368; }
+
+    /* === ONBOARDING CARDS === */
+    .onboard-card {
+        background: #1A1D26; border: 1px solid #2D3139; border-radius: 8px;
+        padding: 24px; text-align: center; cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .onboard-card:hover { border-color: #4285F4; }
+    .onboard-card .icon { font-size: 32px; margin-bottom: 8px; }
+    .onboard-card .title { font-size: 14px; font-weight: 600; color: #E8EAED; }
+    .onboard-card .desc { font-size: 12px; color: #5F6368; margin-top: 4px; }
+
+    /* === CONTAINER HEIGHT === */
+    [data-testid="stVerticalBlock"] > div { gap: 0.5rem; }
 </style>""", unsafe_allow_html=True)
 
 
-def render_topnav(active: str = "portfolio", user_email: str = "", show_logout: bool = True):
-    """Render the top navigation bar."""
-    from html import escape
+def render_topnav(active: str = "portfolio", user_email: str = ""):
+    """Render professional top navigation bar."""
+    def c(name):
+        return "on" if name == active else ""
 
-    def nav_class(name):
-        return "active" if name == active else ""
-
-    logout_html = ""
-    if show_logout and user_email:
-        logout_html = f'<span class="user-info">{escape(user_email)} · <a href="/?logout=1" style="color:#dc3545;">退出</a></span>'
+    user_html = ""
+    if user_email:
+        user_html = f'<span class="user">{escape(user_email)} <a href="/?logout=1">退出</a></span>'
 
     st.markdown(f"""
-<div class="v2-topnav">
-    <div style="display:flex; align-items:center; gap:32px;">
+<div class="topnav">
+    <div style="display:flex;align-items:center;">
         <span class="logo">PFA</span>
-        <div class="nav-links">
-            <a href="/" class="{nav_class('portfolio')}">Portfolio</a>
-            <a href="/综合早报" class="{nav_class('briefing')}">Briefing</a>
-            <a href="/分析中心" class="{nav_class('analysis')}">Analysis</a>
-            <a href="/数据源配置" class="{nav_class('settings')}">Settings</a>
+        <div class="nav" style="margin-left:32px;">
+            <a href="/" class="{c('portfolio')}">Portfolio</a>
+            <a href="/综合早报" class="{c('briefing')}">Briefing</a>
+            <a href="/分析中心" class="{c('analysis')}">Analysis</a>
+            <a href="/数据源配置" class="{c('settings')}">Settings</a>
         </div>
     </div>
-    {logout_html}
+    {user_html}
 </div>""", unsafe_allow_html=True)

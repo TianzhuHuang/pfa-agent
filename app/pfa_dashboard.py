@@ -47,7 +47,7 @@ holdings = portfolio.get("holdings", [])
 if not holdings:
     # Empty state — onboarding
     st.markdown("""
-<div class="v2-empty">
+<div class="empty-state">
     <div class="icon">📊</div>
     <div class="title">欢迎使用 PFA 投研助手</div>
     <div>添加你的第一笔持仓，开始智能投研之旅</div>
@@ -57,21 +57,21 @@ if not holdings:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("""<div class="v2-card" style="text-align:center;">
+        st.markdown("""<div class="onboard-card" style="text-align:center;">
 <div style="font-size:32px; margin-bottom:8px;">🔍</div>
 <div style="font-weight:600; margin-bottom:4px;">智能搜索</div>
 <div style="color:#999; font-size:13px;">输入代码或名称快速添加</div>
 </div>""", unsafe_allow_html=True)
 
     with col2:
-        st.markdown("""<div class="v2-card" style="text-align:center;">
+        st.markdown("""<div class="onboard-card" style="text-align:center;">
 <div style="font-size:32px; margin-bottom:8px;">📸</div>
 <div style="font-weight:600; margin-bottom:4px;">截图识别</div>
 <div style="color:#999; font-size:13px;">上传券商截图 AI 自动提取</div>
 </div>""", unsafe_allow_html=True)
 
     with col3:
-        st.markdown("""<div class="v2-card" style="text-align:center;">
+        st.markdown("""<div class="onboard-card" style="text-align:center;">
 <div style="font-size:32px; margin-bottom:8px;">📄</div>
 <div style="font-weight:600; margin-bottom:4px;">文件导入</div>
 <div style="color:#999; font-size:13px;">CSV / JSON 批量导入</div>
@@ -115,23 +115,23 @@ from app.theme_v2 import COLORS
 
 # --- Top: Total Wealth ---
 c1, c2, c3, c4 = st.columns(4)
-c1.markdown(f"""<div class="v2-metric">
+c1.markdown(f"""<div class="metric-card">
 <div class="label">Total Portfolio</div>
 <div class="value">¥{total_v:,.0f}</div>
 </div>""", unsafe_allow_html=True)
 
-c2.markdown(f"""<div class="v2-metric">
+c2.markdown(f"""<div class="metric-card">
 <div class="label">Total Return</div>
 <div class="value" style="color:{pnl_color};">{sign}¥{total_pnl:,.0f}</div>
 <div class="change" style="color:{pnl_color};">{sign}{total_pct:.2f}%</div>
 </div>""", unsafe_allow_html=True)
 
-c3.markdown(f"""<div class="v2-metric">
+c3.markdown(f"""<div class="metric-card">
 <div class="label">Holdings</div>
 <div class="value">{val['holding_count']}</div>
 </div>""", unsafe_allow_html=True)
 
-c4.markdown(f"""<div class="v2-metric">
+c4.markdown(f"""<div class="metric-card">
 <div class="label">Accounts</div>
 <div class="value">{val['account_count']}</div>
 </div>""", unsafe_allow_html=True)
@@ -144,7 +144,7 @@ with col_holdings:
     st.markdown("### Holdings")
 
     # Build Sharesight-style table
-    table_html = '<table class="v2-table"><thead><tr>'
+    table_html = '<table class="fin-table"><thead><tr>'
     for col in ["Symbol", "Name", "Price", "Cost", "Qty", "Value", "Return", "%"]:
         align = "right" if col not in ["Symbol", "Name"] else ""
         table_html += f'<th class="{align}">{col}</th>'
