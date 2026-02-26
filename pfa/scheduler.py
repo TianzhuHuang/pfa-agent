@@ -57,15 +57,26 @@ def run_morning_briefing(push_telegram: bool = True) -> dict:
     if push_telegram and briefing:
         push_briefing(briefing)
 
+    # Run alert scan after briefing
+    alert_count = 0
+    try:
+        from pfa.alert_engine import run_alert_scan
+        alerts = run_alert_scan(threshold_pct=3.0, push_telegram=push_telegram)
+        alert_count = len(alerts)
+    except Exception as e:
+        print(f"[SCHEDULER] Alert scan failed: {e}")
+
     scout_total = (result.get("scout_result") or {}).get("total", 0)
     print(f"[SCHEDULER] Done. Scout: {scout_total} items, "
           f"Briefing: {'OK' if briefing else 'FAILED'}, "
+          f"Alerts: {alert_count}, "
           f"Telegram: {'pushed' if push_telegram and briefing else 'skipped'}")
 
     return {
         "status": result.get("status", "error"),
         "scout_total": scout_total,
         "has_briefing": bool(briefing),
+        "alert_count": alert_count,
         "telegram_pushed": push_telegram and bool(briefing),
     }
 
