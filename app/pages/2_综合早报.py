@@ -135,23 +135,27 @@ st.subheader("今日必读")
 
 must_reads = briefing_data.get("must_reads", [])
 if must_reads:
+    from html import escape as _esc
     for item in must_reads[:5]:
         priority = item.get("priority", "medium")
         sentiment_cls = item.get("sentiment", "neutral")
         badge_cls = f"sentiment-{sentiment_cls}"
+        title = _esc(str(item.get('title', '')))
+        summary = _esc(str(item.get('summary', '')))
+        impact = _esc(str(item.get('impact_on_portfolio', '')))
+        symbol = _esc(str(item.get('related_symbol', '')))
+        url = item.get('url', '') or ''
+        url_html = f'· <a href="{_esc(url)}" target="_blank">原文</a>' if url else ''
 
         st.markdown(f"""
-<div class="briefing-card {priority}">
+<div class="briefing-card {_esc(priority)}">
     <div class="title">
-        {item.get('title', '')}
-        <span class="sentiment-badge {badge_cls}">{sentiment_cls}</span>
+        {title}
+        <span class="sentiment-badge {badge_cls}">{_esc(sentiment_cls)}</span>
     </div>
-    <div class="summary">{item.get('summary', '')}</div>
-    <div class="impact">💼 {item.get('impact_on_portfolio', '')}</div>
-    <div class="meta">
-        {item.get('related_symbol', '')}
-        {'· <a href="' + item.get('url', '') + '" target="_blank">原文</a>' if item.get('url') else ''}
-    </div>
+    <div class="summary">{summary}</div>
+    <div class="impact">💼 {impact}</div>
+    <div class="meta">{symbol} {url_html}</div>
 </div>
 """, unsafe_allow_html=True)
 else:
@@ -165,15 +169,20 @@ st.subheader("持仓异动")
 
 moves = briefing_data.get("portfolio_moves", [])
 if moves:
+    from html import escape as _esc2
     cols = st.columns(min(len(moves), 3))
     for i, move in enumerate(moves):
         with cols[i % 3]:
             s = move.get("sentiment", "neutral")
+            mname = _esc2(str(move.get('name', '')))
+            msym = _esc2(str(move.get('symbol', '')))
+            mevt = _esc2(str(move.get('event_summary', '')))
+            mhint = _esc2(str(move.get('action_hint', '')))
             st.markdown(f"""
-<div class="move-card {s}">
-    <div style="font-size:15px; font-weight:600;">{move.get('name', '')} <span style="color:#999; font-size:12px;">{move.get('symbol', '')}</span></div>
-    <div style="font-size:13px; color:#555; margin:6px 0;">{move.get('event_summary', '')}</div>
-    <div style="font-size:12px; color:#1a73e8;">👉 {move.get('action_hint', '')}</div>
+<div class="move-card {_esc2(s)}">
+    <div style="font-size:15px; font-weight:600;">{mname} <span style="color:#999; font-size:12px;">{msym}</span></div>
+    <div style="font-size:13px; color:#555; margin:6px 0;">{mevt}</div>
+    <div style="font-size:12px; color:#1a73e8;">👉 {mhint}</div>
 </div>
 """, unsafe_allow_html=True)
 else:
