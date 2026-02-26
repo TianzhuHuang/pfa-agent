@@ -53,24 +53,53 @@ def _call_llm(prompt: str, api_key: str, model: str = DASHSCOPE_MODEL) -> str:
     return choices[0]["message"]["content"], body.get("usage", {})
 
 
+BRIEFING_PROMPT = """你是一位专业的基金经理助理（投研晨报生成器）。
+
+用户持仓标的：{holdings_desc}
+
+以下是最近抓取到的新闻列表（JSON）：
+{news_json}
+
+请生成一份结构化的投研晨报，严格按以下 JSON 格式输出（不要输出任何其他文字，只输出 JSON）：
+
+{{
+  "market_sentiment": {{
+    "score": 0-100 的整数（50=中性，>50 偏多，<50 偏空）,
+    "label": "Bullish" 或 "Bearish" 或 "Neutral",
+    "reason": "一句话说明市场情绪判断依据"
+  }},
+  "must_reads": [
+    {{
+      "title": "新闻标题",
+      "summary": "一句话摘要（不超过50字）",
+      "url": "原始链接",
+      "sentiment": "positive/negative/neutral",
+      "impact_on_portfolio": "对用户持仓的具体影响（一句话）",
+      "related_symbol": "相关标的代码（如 600519），无则留空",
+      "priority": "high/medium/low"
+    }}
+  ],
+  "portfolio_moves": [
+    {{
+      "symbol": "标的代码",
+      "name": "标的名称",
+      "event_summary": "该标的今日关键事件（一句话）",
+      "sentiment": "positive/negative/neutral",
+      "action_hint": "建议关注方向（如：关注渠道价格变化、留意油价走势）"
+    }}
+  ],
+  "one_liner": "今日持仓整体信息面的一句话总结"
+}}
+
+要求：
+- must_reads 选 5 条最值得关注的（从所有新闻中挑选，不限于持仓相关）
+- portfolio_moves 为每个有新闻的持仓标的生成一条
+- 使用中文
+- 只输出 JSON，不要 markdown 代码块"""
+
+
 def build_analysis_prompt(holdings_desc: str, news_json: str) -> str:
-    return (
-        f"你是一位专业的基金经理助理。以下是用户当前持仓标的：\n"
-        f"{holdings_desc}\n\n"
-        f"以下是最近抓取到的与这些持仓相关的新闻列表（JSON 格式）：\n"
-        f"{news_json}\n\n"
-        f"请完成以下任务：\n"
-        f"1. 从上述新闻中筛选出**最值得关注的 3 条信息**。\n"
-        f"2. 对每条信息，说明：\n"
-        f"   - 涉及哪个持仓标的\n"
-        f"   - 为什么值得关注（对持仓可能产生什么影响）\n"
-        f"   - 建议的关注等级（高/中/低）\n\n"
-        f"输出要求：\n"
-        f"- 使用中文回答\n"
-        f"- 结构清晰，编号列出\n"
-        f"- 每条附上原始新闻标题和链接\n"
-        f"- 最后给出一句话总结：今天持仓整体的信息面情况"
-    )
+    return BRIEFING_PROMPT.format(holdings_desc=holdings_desc, news_json=news_json)
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +134,18 @@ def analyze(
 
     text, usage = _call_llm(prompt, api_key)
 
+    # Parse structured JSON from LLM response
+    briefing = None
+    clean = text.strip()
+    if clean.startswith("```"):
+        lines = clean.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        clean = "\n".join(lines)
+    try:
+        briefing = json.loads(clean)
+    except json.JSONDecodeError:
+        pass
+
     result = {
         "analysis_time": datetime.now(CST).isoformat(),
         "model": DASHSCOPE_MODEL,
@@ -112,14 +153,18 @@ def analyze(
         "news_count_input": len(news_for_prompt),
         "token_usage": usage,
         "analysis": text,
+        "briefing": briefing,
     }
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    analysis_for_store = text
+    if briefing:
+        analysis_for_store = json.dumps(briefing, ensure_ascii=False, indent=2)
     rec = AnalysisRecord(
         id=ts, analysis_time=result["analysis_time"],
         model=result["model"], holdings_analyzed=holdings_desc,
         news_count_input=len(news_for_prompt),
-        analysis=text, token_usage=usage,
+        analysis=analysis_for_store, token_usage=usage,
     )
     save_analysis(rec)
 
