@@ -10,11 +10,12 @@ sys.path.insert(0, str(ROOT))
 
 import streamlit as st
 from app.theme import inject_theme, theme_toggle, COLORS
+from app.page_utils import page_init
 from pfa.data.store import load_all_feed_items, load_all_analyses
 from agents.secretary_agent import load_portfolio
 
-inject_theme()
-theme_toggle()
+
+user = page_init()
 
 CST = timezone(timedelta(hours=8))
 now = datetime.now(CST)

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 import streamlit as st
 import pandas as pd
 from app.theme import inject_theme, theme_toggle, COLORS
+from app.page_utils import page_init
 from agents.secretary_agent import (
     load_portfolio, save_portfolio, add_holding, update_holdings_bulk,
     parse_csv_holdings, parse_json_holdings,
@@ -19,8 +20,8 @@ from pfa.stock_search import search_stock
 from pfa.screenshot_ocr import extract_holdings_from_image
 from pfa.ai_portfolio_assistant import parse_portfolio_command
 
-inject_theme()
-theme_toggle()
+
+user = page_init()
 
 CST = timezone(timedelta(hours=8))
 dark = st.session_state.get("dark_mode", True)

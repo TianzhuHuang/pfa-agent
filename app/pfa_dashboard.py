@@ -7,6 +7,7 @@ sys.path.insert(0, str(ROOT))
 
 import streamlit as st
 from app.theme import inject_theme, theme_toggle
+from app.auth import render_auth_sidebar, get_user
 
 st.set_page_config(page_title="PFA 投研助手", page_icon="📊",
                    layout="wide", initial_sidebar_state="expanded")
@@ -14,10 +15,19 @@ st.set_page_config(page_title="PFA 投研助手", page_icon="📊",
 inject_theme()
 
 st.sidebar.markdown("## PFA 投研助手")
+user = render_auth_sidebar()
 theme_toggle()
 st.sidebar.caption("持仓感知 · 信息降噪 · 多 Agent 协作")
 
+if not user.get("user_id"):
+    st.title("PFA 投研助手")
+    st.info("请在左侧登录或注册以开始使用。")
+    st.stop()
+
 st.title("PFA 投研助手")
+mode_badge = "☁️ 云端" if user.get("mode") == "supabase" else "📦 本地"
+st.caption(f"{mode_badge} · {user.get('email', '')}")
+
 st.markdown("""
 | 页面 | 说明 |
 |---|---|

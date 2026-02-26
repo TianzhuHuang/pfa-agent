@@ -11,11 +11,12 @@ sys.path.insert(0, str(ROOT))
 import streamlit as st
 import requests
 from app.theme import inject_theme, theme_toggle, COLORS
+from app.page_utils import page_init
 from pfa.data.store import load_all_feed_items
 from agents.secretary_agent import load_portfolio, fetch_single_symbol
 
-inject_theme()
-theme_toggle()
+
+user = page_init()
 
 CST = timezone(timedelta(hours=8))
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"

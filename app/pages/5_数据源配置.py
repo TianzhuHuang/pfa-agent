@@ -11,13 +11,14 @@ import requests
 import feedparser
 from html import escape
 from app.theme import inject_theme, theme_toggle, COLORS
+from app.page_utils import page_init
 from agents.secretary_agent import (
     load_data_sources, add_rss_source, remove_rss_source,
     add_source, remove_source,
 )
 
-inject_theme()
-theme_toggle()
+
+user = page_init()
 
 dark = st.session_state.get("dark_mode", True)
 

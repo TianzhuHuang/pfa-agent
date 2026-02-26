@@ -10,11 +10,12 @@ sys.path.insert(0, str(ROOT))
 
 import streamlit as st
 from app.theme import inject_theme, theme_toggle, COLORS
+from app.page_utils import page_init
 from pfa.data.store import load_all_analyses
 from agents.secretary_agent import load_portfolio, run_full_pipeline, fetch_single_symbol
 
-inject_theme()
-theme_toggle()
+
+user = page_init()
 
 portfolio = load_portfolio()
 holdings = portfolio.get("holdings", [])
