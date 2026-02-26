@@ -25,7 +25,7 @@ COLORS = {
 
 def inject_theme():
     """Inject global CSS based on theme toggle."""
-    dark = st.session_state.get("dark_mode", True)
+    dark = st.session_state.get("dark_mode", False)
 
     bg = COLORS["bg_dark"] if dark else COLORS["bg_light"]
     card_bg = COLORS["bg_card_dark"] if dark else COLORS["bg_card_light"]

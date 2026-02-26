@@ -63,7 +63,7 @@ if holdings:
 # ===================================================================
 # Main layout: Left = Holdings | Right = Ask PFA
 # ===================================================================
-col_left, col_right = st.columns([3, 2])
+col_left, col_right = st.columns([7, 3])
 
 # --- LEFT: Holdings by account ---
 with col_left:
@@ -76,11 +76,10 @@ with col_left:
             ps = "+" if apnl >= 0 else ""
 
             with st.expander(f"**{acct_name}** · ¥{acct_data['value']:,.0f} · {ps}¥{apnl:,.0f}", expanded=True):
-                # Build HTML table for full dark theme control
-                html = f'<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+                html = f'<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:auto;">'
                 html += f'<tr style="border-bottom:1px solid {border};">'
-                for col in ["代码", "名称", "现价", "成本", "数量", "盈亏", "%"]:
-                    html += f'<th style="text-align:right;padding:6px 8px;color:{sub_c};font-weight:600;font-size:11px;">{col}</th>'
+                for col in ["代码", "名称", "现价", "成本", "数量", "盈亏", "涨跌%"]:
+                    html += f'<th style="text-align:right;padding:8px 10px;color:{sub_c};font-weight:600;font-size:12px;white-space:nowrap;">{col}</th>'
                 html += '</tr>'
 
                 for h in acct_data["holdings"]:
@@ -88,14 +87,15 @@ with col_left:
                     pct = h["pnl_pct"]
                     pc = COLORS["positive"] if pnl >= 0 else COLORS["negative"]
                     ps2 = "+" if pnl >= 0 else ""
+                    td = f'padding:8px 10px;white-space:nowrap;'
                     html += f'<tr style="border-bottom:1px solid {border};">'
-                    html += f'<td style="padding:6px 8px;color:{COLORS["accent"] if dark else COLORS["bullish"]};font-weight:600;">{h["symbol"]}</td>'
-                    html += f'<td style="padding:6px 8px;color:{text_c};">{escape(h.get("name",""))}</td>'
-                    html += f'<td style="padding:6px 8px;text-align:right;color:{text_c};">{h.get("current_price","—")}</td>'
-                    html += f'<td style="padding:6px 8px;text-align:right;color:{sub_c};">{h.get("cost_price","—")}</td>'
-                    html += f'<td style="padding:6px 8px;text-align:right;color:{text_c};">{h.get("quantity","—")}</td>'
-                    html += f'<td style="padding:6px 8px;text-align:right;color:{pc};font-weight:600;">{ps2}{pnl:,.0f}</td>'
-                    html += f'<td style="padding:6px 8px;text-align:right;color:{pc};">{ps2}{pct:.1f}%</td>'
+                    html += f'<td style="{td}color:{COLORS["accent"] if dark else COLORS["bullish"]};font-weight:600;">{h["symbol"]}</td>'
+                    html += f'<td style="{td}color:{text_c};">{escape(h.get("name",""))}</td>'
+                    html += f'<td style="{td}text-align:right;color:{text_c};">{h.get("current_price","—")}</td>'
+                    html += f'<td style="{td}text-align:right;color:{sub_c};">{h.get("cost_price","—")}</td>'
+                    html += f'<td style="{td}text-align:right;color:{text_c};">{h.get("quantity","—")}</td>'
+                    html += f'<td style="{td}text-align:right;color:{pc};font-weight:600;">{ps2}{pnl:,.0f}</td>'
+                    html += f'<td style="{td}text-align:right;color:{pc};">{ps2}{pct:.1f}%</td>'
                     html += '</tr>'
                 html += '</table>'
                 st.markdown(html, unsafe_allow_html=True)
