@@ -123,15 +123,25 @@ else:
     st.info("暂无持仓。使用下方 AI 助理或其他方式添加。")
 
 # ===================================================================
-# AI Portfolio Assistant
+# AI Portfolio Assistant (Ask NBot style)
 # ===================================================================
 st.markdown("---")
-st.subheader("AI 记账助理")
-st.caption("自然语言录入，例如：「平安证券加仓 500 股中海油，价格 21.5」")
+st.subheader("Ask PFA · 记账助理")
 
-ai_input = st.chat_input("输入持仓操作指令...")
+# Chat history
+if "portfolio_chat" not in st.session_state:
+    st.session_state["portfolio_chat"] = [
+        {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以用自然语言管理持仓，例如：\n- 「平安证券加仓 500 股中海油，价格 21.5」\n- 「腾讯控股数量改为 200」\n- 「卖出全部上海机场」"}
+    ]
+
+for msg in st.session_state["portfolio_chat"]:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+ai_input = st.chat_input("输入持仓操作...")
 
 if ai_input:
+    st.session_state["portfolio_chat"].append({"role": "user", "content": ai_input})
     with st.chat_message("user"):
         st.markdown(ai_input)
 
@@ -140,7 +150,8 @@ if ai_input:
             result = parse_portfolio_command(ai_input)
 
         if "error" in result:
-            st.error(f"解析失败: {result['error']}")
+            reply = f"❌ 解析失败: {result['error']}"
+            st.markdown(reply)
         else:
             action = result.get("action", "?")
             sym = result.get("symbol", "?")
@@ -148,38 +159,59 @@ if ai_input:
             qty = result.get("quantity", 0)
             price = result.get("price", 0)
             acct = result.get("account", "")
+            market = result.get("market", "A")
             conf = result.get("confidence", 0)
+            action_text = {"add": "买入", "remove": "卖出", "update": "更新"}.get(action, action)
 
-            action_text = {"add": "买入/加仓", "remove": "卖出/减仓", "update": "更新"}.get(action, action)
+            # Auto-execute with confirmation message
+            p = load_portfolio()
+            now_str = datetime.now(CST).isoformat()
 
-            st.markdown(f"""
-**解析结果** (置信度: {conf}%)
+            if action == "add":
+                entry = {"symbol": sym, "name": name, "market": market,
+                         "source": "ai_assistant", "updated_at": now_str}
+                if qty > 0: entry["quantity"] = qty
+                if price > 0: entry["cost_price"] = price
+                if acct: entry["account"] = acct
+                p.setdefault("holdings", []).append(entry)
+                save_portfolio(p)
+                reply = f"✅ **已买入** {name}({sym}) {qty}股" + (f" @{price}" if price else "") + (f" → {acct}" if acct else "")
 
-| 项目 | 值 |
-|---|---|
-| 操作 | {action_text} |
-| 代码 | {sym} |
-| 名称 | {name} |
-| 市场 | {result.get('market', '?')} |
-| 数量 | {qty} |
-| 价格 | {price} |
-| 账户 | {acct or '默认'} |
-""")
+            elif action == "update":
+                updated = False
+                for h in p.get("holdings", []):
+                    if h["symbol"] == sym:
+                        if qty >= 0: h["quantity"] = qty
+                        if price > 0: h["cost_price"] = price
+                        h["updated_at"] = now_str
+                        updated = True
+                        break
+                if updated:
+                    save_portfolio(p)
+                    reply = f"✅ **已更新** {name}({sym})"
+                    if qty == 0:
+                        reply += " → 数量清零"
+                    else:
+                        reply += f" → 数量 {qty}" + (f", 价格 {price}" if price else "")
+                else:
+                    reply = f"⚠️ 未找到 {name}({sym})，无法更新"
 
-            if st.button("确认执行", type="primary", key="ai_confirm"):
-                if action == "add":
-                    add_holding(sym, name, result.get("market", "A"),
-                                price, qty, 0, "ai_assistant")
-                    if acct:
-                        p = load_portfolio()
-                        for h in p["holdings"]:
-                            if h["symbol"] == sym and not h.get("account"):
-                                h["account"] = acct
-                        save_portfolio(p)
-                    st.success(f"已添加 {name}({sym}) {qty}股 @{price}")
-                    st.rerun()
-                elif action == "remove":
-                    st.info(f"减仓功能开发中。请在表格编辑中手动修改数量。")
+            elif action == "remove":
+                before = len(p.get("holdings", []))
+                p["holdings"] = [h for h in p.get("holdings", []) if h["symbol"] != sym]
+                if len(p["holdings"]) < before:
+                    save_portfolio(p)
+                    reply = f"✅ **已删除** {name}({sym})"
+                else:
+                    reply = f"⚠️ 未找到 {name}({sym})"
+            else:
+                reply = f"❓ 未知操作: {action}"
+
+            st.markdown(reply)
+            st.caption(f"置信度: {conf}% · {action_text} · {sym} · {market}")
+
+        st.session_state["portfolio_chat"].append({"role": "assistant", "content": reply})
+    st.rerun()
 
 # ===================================================================
 # Quick Actions: Search / Upload / CSV

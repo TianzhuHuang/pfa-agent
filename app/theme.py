@@ -105,11 +105,42 @@ def inject_theme():
     .feed-item .snippet {{ font-size: 12px; color: {sub_text}; margin-top: 4px; }}
     .feed-item .meta {{ font-size: 11px; color: {'#555' if dark else '#aaa'}; margin-top: 4px; }}
 
-    /* Data tables */
-    .stDataFrame {{ background: {card_bg}; }}
+    /* Data tables — force unified dark/light */
+    .stDataFrame, [data-testid="stDataFrame"] {{ background: {card_bg} !important; }}
+    .stDataFrame table {{ background: {card_bg} !important; color: {text} !important; }}
+    .stDataFrame th {{ background: {'#222' if dark else '#f0f2f6'} !important; color: {text} !important; font-size: 12px; font-weight: 600; border-bottom: 1px solid {border} !important; }}
+    .stDataFrame td {{ background: {card_bg} !important; color: {text} !important; font-size: 13px; border-bottom: 1px solid {border} !important; }}
+    .stDataFrame tr:hover td {{ background: {'#252525' if dark else '#f5f5f5'} !important; }}
+    [data-testid="stDataFrameResizable"] {{ border: 1px solid {border} !important; border-radius: 8px !important; overflow: hidden; }}
+    .stDataFrame [data-testid="StyledLinkCell"] {{ color: {COLORS['accent'] if dark else COLORS['bullish']} !important; }}
+
+    /* Data editor */
+    [data-testid="stDataEditor"] {{ background: {card_bg} !important; border: 1px solid {border} !important; border-radius: 8px !important; }}
+
+    /* Expander */
+    [data-testid="stExpander"] {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; }}
+    [data-testid="stExpander"] summary {{ color: {text}; }}
+
+    /* Select / Input */
+    .stSelectbox > div > div {{ background: {card_bg} !important; color: {text} !important; }}
+    .stTextInput > div > div > input {{ background: {card_bg} !important; color: {text} !important; border-color: {border} !important; }}
+    .stNumberInput > div > div > input {{ background: {card_bg} !important; color: {text} !important; }}
+
+    /* Metric */
+    [data-testid="stMetricValue"] {{ color: {text} !important; }}
 
     /* Chat */
-    [data-testid="stChatMessage"] {{ background: {card_bg}; border-radius: 8px; }}
+    [data-testid="stChatMessage"] {{ background: {card_bg} !important; border: 1px solid {border}; border-radius: 10px; margin-bottom: 8px; }}
+    [data-testid="stChatInput"] {{ border-color: {border} !important; }}
+    [data-testid="stChatInput"] textarea {{ background: {card_bg} !important; color: {text} !important; }}
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {{ background: transparent; }}
+    .stTabs [data-baseweb="tab"] {{ color: {sub_text}; }}
+    .stTabs [aria-selected="true"] {{ color: {COLORS['accent'] if dark else COLORS['bullish']}; }}
+
+    /* Buttons */
+    .stButton > button {{ border-color: {border}; }}
     </style>""", unsafe_allow_html=True)
 
 
