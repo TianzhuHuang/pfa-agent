@@ -113,6 +113,11 @@ with col_left:
     if all_memos:
         st.markdown("---")
         st.markdown("### 投资备忘录")
+        st.markdown(
+            f'<div style="font-size:12px;color:{sub_c};margin-bottom:12px;">'
+            '🔴 买入 &nbsp; 🟢 卖出 &nbsp; ⚪ 持有 &nbsp; 👁 观望 &nbsp; 📝 笔记'
+            '</div>', unsafe_allow_html=True,
+        )
         action_icons = {"buy": "🔴", "sell": "🟢", "hold": "⚪", "watch": "👁", "note": "📝"}
         for m in all_memos[:10]:
             icon = action_icons.get(m.get("action", "note"), "📝")
