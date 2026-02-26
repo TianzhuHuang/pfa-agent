@@ -48,33 +48,85 @@ if not holdings:
 <div class="empty-state">
     <div class="icon">📊</div>
     <div class="title">Welcome to PFA</div>
-    <div class="desc">Add your first holding to get started</div>
+    <div class="desc">添加你的第一笔持仓，开始智能投研之旅</div>
 </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
-    c1, c2, c3 = st.columns(3)
-    c1.markdown('<div class="onboard-card"><div class="icon">🔍</div><div class="title">智能搜索</div><div class="desc">代码或名称快速添加</div></div>', unsafe_allow_html=True)
-    c2.markdown('<div class="onboard-card"><div class="icon">📸</div><div class="title">截图识别</div><div class="desc">AI 自动提取持仓</div></div>', unsafe_allow_html=True)
-    c3.markdown('<div class="onboard-card"><div class="icon">📄</div><div class="title">文件导入</div><div class="desc">CSV / JSON 批量导入</div></div>', unsafe_allow_html=True)
 
-    st.markdown("### 搜索添加")
     from pfa.stock_search import search_stock
-    q = st.text_input("搜索股票", placeholder="茅台、00700、AAPL")
-    if q and len(q.strip()) >= 1:
-        results = search_stock(q)
-        if results:
-            for r in results[:5]:
-                ca, cb = st.columns([4, 1])
-                ca.markdown(f"**{r['code']}** {r['name']} · {r['market_raw']}")
-                if cb.button("添加", key=f"add_{r['code']}"):
-                    new_h = {"symbol": r["code"], "name": r["name"], "market": r["market"], "source": "search"}
-                    if user.get("mode") == "supabase":
-                        from pfa.data.supabase_store import save_holdings
-                        save_holdings(user["user_id"], [new_h])
-                    else:
-                        from agents.secretary_agent import add_holding
-                        add_holding(r["code"], r["name"], r["market"], 0, 0, 0, "search")
-                    st.rerun()
+    from pfa.screenshot_ocr import extract_holdings_from_image
+    from agents.secretary_agent import parse_csv_holdings, parse_json_holdings
+    import pandas as pd
+    from datetime import datetime, timedelta, timezone as tz
+    _CST = tz(timedelta(hours=8))
+
+    def _save_new_holdings(new_list):
+        if user.get("mode") == "supabase":
+            from pfa.data.supabase_store import load_holdings, save_holdings
+            existing = load_holdings(user["user_id"])
+            existing.extend(new_list)
+            save_holdings(user["user_id"], existing)
+        else:
+            from agents.secretary_agent import add_holding
+            for h in new_list:
+                add_holding(h.get("symbol",""), h.get("name",""), h.get("market","A"),
+                            h.get("cost_price",0), h.get("quantity",0), 0, h.get("source","manual"))
+
+    tab_search, tab_ocr, tab_csv = st.tabs(["🔍 智能搜索", "📸 截图识别", "📄 文件导入"])
+
+    with tab_search:
+        q = st.text_input("搜索股票代码或名称", placeholder="茅台、00700、AAPL、腾讯")
+        if q and len(q.strip()) >= 1:
+            results = search_stock(q)
+            if results:
+                for r in results[:6]:
+                    ca, cb = st.columns([4, 1])
+                    ca.markdown(f"**{r['code']}** {r['name']} · {r['market_raw']}")
+                    if cb.button("添加", key=f"add_{r['code']}", type="primary"):
+                        _save_new_holdings([{"symbol": r["code"], "name": r["name"], "market": r["market"], "source": "search"}])
+                        st.rerun()
+            else:
+                st.caption("未找到匹配的股票")
+
+    with tab_ocr:
+        st.caption("上传券商持仓截图，AI 自动提取")
+        img = st.file_uploader("上传截图", type=["png","jpg","jpeg","webp"], key="onb_img")
+        if img:
+            st.image(img, use_container_width=True)
+            if st.button("AI 识别", type="primary", key="onb_ocr"):
+                with st.spinner("识别中..."):
+                    r = extract_holdings_from_image(img.read(), "image/png")
+                if r["status"] == "ok" and r["holdings"]:
+                    st.session_state["onb_ocr"] = r["holdings"]
+                    st.success(f"识别到 {len(r['holdings'])} 条")
+                else:
+                    st.error(r.get("error", "识别失败"))
+        ocr = st.session_state.get("onb_ocr")
+        if ocr:
+            ed = st.data_editor(pd.DataFrame(ocr), num_rows="dynamic", use_container_width=True, hide_index=True)
+            if st.button("导入全部", type="primary", key="onb_ocr_imp"):
+                rows = [dict(row) for _, row in ed.iterrows() if str(row.get("symbol","")).strip()]
+                for r in rows:
+                    r["source"] = "ocr"
+                _save_new_holdings(rows)
+                del st.session_state["onb_ocr"]
+                st.rerun()
+
+    with tab_csv:
+        st.caption("上传 CSV 或 JSON 文件批量导入")
+        up = st.file_uploader("上传文件", type=["csv","json"], key="onb_file")
+        if up:
+            raw = up.read().decode("utf-8")
+            try:
+                parsed = parse_csv_holdings(raw) if up.name.endswith(".csv") else parse_json_holdings(raw)
+                if parsed:
+                    st.dataframe(pd.DataFrame(parsed), use_container_width=True, hide_index=True)
+                    if st.button("导入全部", type="primary", key="onb_file_imp"):
+                        _save_new_holdings(parsed)
+                        st.rerun()
+            except Exception as e:
+                st.error(str(e))
+
     st.stop()
 
 # --- Has holdings: Portfolio Hub ---
