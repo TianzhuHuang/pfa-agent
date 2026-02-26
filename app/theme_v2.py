@@ -91,10 +91,11 @@ def inject_v2_theme():
     .fin-table .up { color: #E53935; }
     .fin-table .down { color: #43A047; }
     .fin-table .muted { color: #5F6368; }
-    .fin-table .group-row td {
-        font-size: 12px; font-weight: 600; color: #5F6368;
-        padding: 12px; background: rgba(26,29,38,0.8);
+    .fin-table .group-row td, .fin-table tr.group-row td {
+        font-size: 11px; font-weight: 600; color: #5F6368;
+        padding: 10px 12px; background: #1A1D26 !important;
         border-bottom: 1px solid #2D3139;
+        letter-spacing: 0.3px; text-transform: uppercase;
     }
 
     /* === TOP NAV === */

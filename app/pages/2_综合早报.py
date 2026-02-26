@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 import streamlit as st
 from app.theme_v2 import inject_v2_theme, render_topnav, COLORS
 from app.auth_v2 import get_user
+from app.notifications import inject_briefing_to_chat, add_notification
 from pfa.data.store import load_all_feed_items, load_all_analyses
 from agents.secretary_agent import load_portfolio
 
@@ -39,6 +40,16 @@ if st.button("生成今日晨报", type="primary", use_container_width=True):
         from agents.secretary_agent import run_full_pipeline
         result = run_full_pipeline(holdings, hours=24, do_audit=False)
     st.session_state["briefing"] = result
+    # Inject into AI chat and notification center
+    if result.get("analyst_result"):
+        b = result["analyst_result"].get("briefing")
+        if not b:
+            try:
+                b = json.loads(result["analyst_result"].get("analysis", "{}"))
+            except (json.JSONDecodeError, TypeError):
+                b = None
+        if b:
+            inject_briefing_to_chat(b)
     st.rerun()
 
 # --- Load briefing ---
