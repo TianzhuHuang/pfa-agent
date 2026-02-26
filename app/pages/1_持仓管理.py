@@ -1,6 +1,6 @@
 """持仓大盘 — 左侧持仓 + 右侧 Ask PFA 对话 (NBOT 风格)"""
 
-import json, sys
+import json, sys, urllib.parse
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
@@ -89,7 +89,8 @@ with col_left:
                     ps2 = "+" if pnl >= 0 else ""
                     td = f'padding:8px 10px;white-space:nowrap;'
                     html += f'<tr style="border-bottom:1px solid {border};">'
-                    html += f'<td style="{td}color:{COLORS["accent"] if dark else COLORS["bullish"]};font-weight:600;">{h["symbol"]}</td>'
+                    ticker_link = f'/{urllib.parse.quote("个股深度")}?symbol={h["symbol"]}'
+                    html += f'<td style="{td}"><a href="{ticker_link}" target="_self" style="color:{COLORS["accent"] if dark else COLORS["bullish"]};font-weight:600;text-decoration:none;">{h["symbol"]}</a></td>'
                     html += f'<td style="{td}color:{text_c};">{escape(h.get("name",""))}</td>'
                     html += f'<td style="{td}text-align:right;color:{text_c};">{h.get("current_price","—")}</td>'
                     html += f'<td style="{td}text-align:right;color:{sub_c};">{h.get("cost_price","—")}</td>'

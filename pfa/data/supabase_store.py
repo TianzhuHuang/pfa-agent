@@ -54,17 +54,43 @@ def is_available() -> bool:
 # ===================================================================
 
 def sign_up(email: str, password: str) -> Dict[str, Any]:
-    """Register a new user."""
+    """Register a new user. Auto sign-in after registration."""
     client = _get_client()
     if not client:
         return {"error": "Supabase not configured"}
     try:
         resp = client.auth.sign_up({"email": email, "password": password})
-        if resp.user:
-            return {"ok": True, "user_id": str(resp.user.id), "email": resp.user.email}
-        return {"error": "Registration failed"}
+        if resp.user and resp.session:
+            # Auto sign-in (email confirm not required in dev)
+            return {
+                "ok": True,
+                "user_id": str(resp.user.id),
+                "email": resp.user.email,
+                "access_token": resp.session.access_token,
+                "refresh_token": resp.session.refresh_token,
+            }
+        elif resp.user:
+            # Email confirm required — try auto sign-in
+            try:
+                login = client.auth.sign_in_with_password({"email": email, "password": password})
+                if login.user and login.session:
+                    return {
+                        "ok": True,
+                        "user_id": str(login.user.id),
+                        "email": login.user.email,
+                        "access_token": login.session.access_token,
+                        "refresh_token": login.session.refresh_token,
+                    }
+            except Exception:
+                pass
+            return {"ok": True, "user_id": str(resp.user.id), "email": resp.user.email,
+                    "needs_confirm": True}
+        return {"error": "注册失败"}
     except Exception as e:
-        return {"error": str(e)}
+        msg = str(e)
+        if "already registered" in msg.lower():
+            return {"error": "该邮箱已注册，请直接登录"}
+        return {"error": msg}
 
 
 def sign_in(email: str, password: str) -> Dict[str, Any]:
