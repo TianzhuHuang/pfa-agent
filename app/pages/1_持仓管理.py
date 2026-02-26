@@ -39,10 +39,9 @@ st.header("持仓大盘")
 if holdings:
     try:
         from pfa.portfolio_valuation import calculate_portfolio_value, get_fx_rates, get_realtime_prices
-        with st.spinner("获取行情..."):
-            fx = get_fx_rates()
-            prices = get_realtime_prices(holdings)
-            val = calculate_portfolio_value(holdings, prices, fx)
+        fx = get_fx_rates()
+        prices = get_realtime_prices(holdings)
+        val = calculate_portfolio_value(holdings, prices, fx)
 
         total_v = val["total_value_cny"]
         total_pnl = val["total_pnl_cny"]

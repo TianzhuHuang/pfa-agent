@@ -54,21 +54,21 @@ with col_info:
     acct = h.get("account", "—")
     src = h.get("source", "—")
 
-    # Real-time quote
+    # Real-time quote (Sina API, instant)
     current_price = None
     try:
-        from pfa.browser_fetcher import fetch_xueqiu_quote
-        xq_sym = f"{'SH' if market == 'A' and sym.startswith('6') else 'SZ' if market == 'A' else ''}{sym}"
-        quotes = fetch_xueqiu_quote([xq_sym])
-        if quotes:
-            q = quotes[0]
-            current_price = q.get("current")
+        from pfa.realtime_quote import get_realtime_quotes
+        quotes = get_realtime_quotes([h])
+        q = quotes.get(sym, {})
+        if q.get("current"):
+            current_price = q["current"]
             pct = q.get("percent", 0)
-            pct_color = COLORS["positive"] if pct and float(pct) > 0 else COLORS["negative"] if pct and float(pct) < 0 else COLORS["neutral"]
+            pct_color = COLORS["positive"] if pct > 0 else COLORS["negative"] if pct < 0 else COLORS["neutral"]
+            sign = "+" if pct > 0 else ""
             st.markdown(f"""
 <div class="pfa-card">
     <div style="font-size:28px; font-weight:800;">{current_price}</div>
-    <div style="font-size:16px; font-weight:600; color:{pct_color};">{'+' if pct and float(pct) > 0 else ''}{pct}%</div>
+    <div style="font-size:16px; font-weight:600; color:{pct_color};">{sign}{pct}%</div>
 </div>""", unsafe_allow_html=True)
     except Exception:
         pass

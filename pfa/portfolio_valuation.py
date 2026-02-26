@@ -41,24 +41,26 @@ def market_to_currency(market: str) -> str:
 
 
 def get_realtime_prices(holdings: List[Dict]) -> Dict[str, Dict]:
-    """Get real-time prices for all holdings via Xueqiu API.
+    """Get real-time prices for all holdings.
 
-    Returns {symbol: {current, percent, name}}.
+    Uses Sina Finance API (instant, no browser needed).
+    Fallback to Xueqiu via Playwright if Sina fails.
     """
+    try:
+        from pfa.realtime_quote import get_realtime_quotes
+        return get_realtime_quotes(holdings)
+    except Exception:
+        pass
+
+    # Fallback: Xueqiu via Playwright (slow but reliable)
     prices = {}
     try:
         from pfa.browser_fetcher import fetch_xueqiu_quote
         symbols = []
         for h in holdings:
             sym, mkt = h["symbol"], h.get("market", "A")
-            if mkt == "A":
-                prefix = "SH" if sym.startswith("6") else "SZ"
-            elif mkt == "HK":
-                prefix = ""
-            else:
-                prefix = ""
+            prefix = "SH" if mkt == "A" and sym.startswith("6") else "SZ" if mkt == "A" else ""
             symbols.append(f"{prefix}{sym}")
-
         quotes = fetch_xueqiu_quote(symbols)
         for q in quotes:
             raw_sym = q["symbol"]
