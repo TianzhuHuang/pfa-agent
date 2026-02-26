@@ -10,15 +10,20 @@ import streamlit as st
 import requests
 import feedparser
 from html import escape
-from app.theme import inject_theme, theme_toggle, COLORS
-from app.page_utils import page_init
+from app.theme_v2 import inject_v2_theme, render_topnav, COLORS
+from app.auth_v2 import get_user
 from agents.secretary_agent import (
     load_data_sources, add_rss_source, remove_rss_source,
     add_source, remove_source,
 )
 
 
-user = page_init()
+inject_v2_theme()
+user = get_user()
+if not user.get('user_id'):
+    st.warning('请先登录。')
+    st.stop()
+render_topnav(active='settings', user_email=user.get('email', ''))
 
 dark = st.session_state.get("dark_mode", True)
 

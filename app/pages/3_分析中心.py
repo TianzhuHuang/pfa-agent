@@ -9,13 +9,18 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 import streamlit as st
-from app.theme import inject_theme, theme_toggle, COLORS
-from app.page_utils import page_init
+from app.theme_v2 import inject_v2_theme, render_topnav, COLORS
+from app.auth_v2 import get_user
 from pfa.data.store import load_all_analyses
 from agents.secretary_agent import load_portfolio, run_full_pipeline, fetch_single_symbol
 
 
-user = page_init()
+inject_v2_theme()
+user = get_user()
+if not user.get('user_id'):
+    st.warning('请先登录。')
+    st.stop()
+render_topnav(active='analysis', user_email=user.get('email', ''))
 
 portfolio = load_portfolio()
 holdings = portfolio.get("holdings", [])
