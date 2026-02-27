@@ -30,7 +30,7 @@ LAYOUT_BASE = dict(
     plot_bgcolor=CHART_COLORS["bg"],
     font=dict(family="Inter, sans-serif", color=CHART_COLORS["text"], size=12),
     margin=dict(l=0, r=0, t=30, b=0),
-    height=280,
+
 )
 
 
@@ -58,8 +58,9 @@ def render_allocation_pie(holdings_data: List[Dict], total_value: float):
         hovertemplate="%{label}<br>¥%{value:,.0f}<extra></extra>",
     )])
 
+    layout = {k: v for k, v in LAYOUT_BASE.items() if k != "height"}
     fig.update_layout(
-        **LAYOUT_BASE,
+        **layout,
         showlegend=True,
         legend=dict(
             font=dict(size=11, color=CHART_COLORS["text"]),
@@ -96,7 +97,7 @@ def render_market_distribution(by_market: Dict):
     )])
 
     fig.update_layout(
-        **LAYOUT_BASE,
+        {k:v for k,v in LAYOUT_BASE.items() if k!="height"},
         height=120 + 30 * len(markets),
         yaxis=dict(showgrid=False),
         xaxis=dict(showgrid=False, showticklabels=False),
@@ -134,7 +135,7 @@ def render_pnl_waterfall(holdings_data: List[Dict]):
     )])
 
     fig.update_layout(
-        **LAYOUT_BASE,
+        {k:v for k,v in LAYOUT_BASE.items() if k!="height"},
         height=200,
         yaxis=dict(showgrid=True, gridcolor=CHART_COLORS["grid"],
                    zeroline=True, zerolinecolor=CHART_COLORS["grid"]),
