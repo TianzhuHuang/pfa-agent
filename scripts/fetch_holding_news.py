@@ -8,8 +8,8 @@ PFA 持仓感知器 — 根据持仓标的抓取相关新闻
     python scripts/fetch_holding_news.py --portfolio config/x.json   # 指定持仓文件
     python scripts/fetch_holding_news.py --hours 48                  # 指定时间窗口
 
-数据存储: data/raw/fetch_<timestamp>.json
-分析存储: data/raw/analysis_<timestamp>.json
+数据存储: data/raw/ (legacy) + data/store/ (统一数据层)
+分析存储: data/store/analyses/
 """
 
 import argparse
@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from pfa.data.store import FeedItem, AnalysisRecord, save_feed_items, save_analysis
 DEFAULT_PORTFOLIO = ROOT / "config" / "my-portfolio.json"
 RAW_DIR = ROOT / "data" / "raw"
 
@@ -429,6 +431,23 @@ def main():
     fetch_data = fetch_all_news(holdings, hours=args.hours)
     fetch_path = save_raw(fetch_data, prefix="fetch")
 
+    # Write to unified store
+    feed_items = []
+    for r in fetch_data["results"]:
+        for n in r.get("news", []):
+            feed_items.append(FeedItem(
+                id=n["id"], title=n["title"], url=n["url"],
+                published_at=n["published_at"],
+                content_snippet=n["content_snippet"],
+                source=n["source"], source_id=n["source_id"],
+                symbol=r["symbol"], symbol_name=r["name"],
+                market=r["market"],
+                fetched_at=fetch_data["fetch_time"],
+            ))
+    if feed_items:
+        store_path = save_feed_items(feed_items, source_label="eastmoney")
+        print(f"[STORE] {len(feed_items)} 条写入统一数据层 → {store_path}")
+
     print(f"\n[SUMMARY] 共抓取 {fetch_data['total_news_count']} 条新闻")
     for r in fetch_data["results"]:
         print(f"  {r['name']}({r['symbol']}): {r['in_time_window']} 条")
@@ -437,6 +456,17 @@ def main():
         analysis = analyze_with_qwen(fetch_data, holdings)
         if analysis:
             save_raw(analysis, prefix="analysis")
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            rec = AnalysisRecord(
+                id=ts, analysis_time=analysis["analysis_time"],
+                model=analysis["model"],
+                holdings_analyzed=analysis["holdings_analyzed"],
+                news_count_input=analysis["news_count_input"],
+                analysis=analysis["analysis"],
+                token_usage=analysis.get("token_usage", {}),
+            )
+            save_analysis(rec)
+            print(f"[STORE] 分析记录写入统一数据层")
 
     print("\n[DONE] 持仓感知器执行完毕")
 

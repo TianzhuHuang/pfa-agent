@@ -1,0 +1,88 @@
+{
+  "rss_urls": [
+    {
+      "url": "https://36kr.com/feed",
+      "name": "36kr",
+      "category": "深度分析",
+      "enabled": true
+    },
+    {
+      "url": "http://www.ftchinese.com/rss/feed",
+      "name": "FT中文网",
+      "category": "宏观与快讯",
+      "enabled": true
+    },
+    {
+      "url": "http://localhost:1200/cls/telegraph",
+      "name": "财联社-电报",
+      "category": "宏观与快讯",
+      "enabled": true,
+      "via": "self-hosted RSSHub"
+    },
+    {
+      "url": "http://localhost:1200/gelonghui/live",
+      "name": "格隆汇-快讯",
+      "category": "宏观与快讯",
+      "enabled": true,
+      "via": "self-hosted RSSHub"
+    },
+    {
+      "url": "http://localhost:1200/jin10/flash",
+      "name": "金十快讯",
+      "category": "宏观与快讯",
+      "enabled": true,
+      "via": "self-hosted RSSHub"
+    }
+  ],
+  "api_sources": [
+    {
+      "type": "eastmoney",
+      "name": "东方财富-个股新闻",
+      "category": "深度分析",
+      "mode": "per_stock",
+      "enabled": true,
+      "note": "自动为每个持仓标的生成搜索关键词"
+    },
+    {
+      "type": "wallstreetcn",
+      "name": "华尔街见闻-全球快讯",
+      "category": "宏观与快讯",
+      "mode": "global",
+      "enabled": true,
+      "api_url": "https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=20"
+    }
+  ],
+  "unavailable_sources": [
+    {
+      "name": "智通财经",
+      "reason": "RSSHub 路由暂不可用",
+      "rsshub_route": "/zhitongcaijing/recommend"
+    },
+    {
+      "name": "雪球-个股讨论",
+      "reason": "需要 Cookie 登录",
+      "rsshub_route": "/xueqiu/user/<uid>"
+    },
+    {
+      "name": "巨潮资讯-公告",
+      "reason": "RSSHub 路由暂不可用",
+      "rsshub_route": "/cninfo/announcement"
+    },
+    {
+      "name": "港交所-公告",
+      "reason": "RSSHub 路由暂不可用",
+      "rsshub_route": "/hkex/announcement"
+    }
+  ],
+  "twitter_handles": [
+    "xinGPT"
+  ],
+  "monitor_urls": [
+    "https://xueqiu.com/S/SH600900"
+  ],
+  "xueqiu_user_ids": [
+    "9650668145"
+  ],
+  "self_hosted_rsshub": "http://localhost:1200",
+  "_comment": "self_hosted_rsshub 已配置，财联社/格隆汇/金十已通过 RSSHub 路由自动激活"
+}

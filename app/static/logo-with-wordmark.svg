@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none" aria-hidden="true">
+  <!-- 图标 -->
+  <path d="M6 24 L10 20 L14 16 L18 12 L22 8 L26 6" stroke="#4285F4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="26" cy="6" r="2" fill="#4285F4"/>
+  <!-- 字标 PFA -->
+  <text x="36" y="22" font-family="Inter, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700" fill="#E8EAED" letter-spacing="-0.02em">PFA</text>
+</svg>
