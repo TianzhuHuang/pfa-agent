@@ -72,31 +72,44 @@ def get_realtime_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
 
         try:
             if sina_code.startswith(("sh", "sz")):
-                # A-share: name,open,last_close,current,high,low,...
+                # A-share: name,open,last_close,current,high,low,buy,sell,vol,amount,
+                #          b1v,b1p,b2v,b2p,...,date,time
                 current = float(fields[3])
                 last_close = float(fields[2])
                 pct = ((current - last_close) / last_close * 100) if last_close > 0 else 0
+                chg = current - last_close
+                vol = float(fields[8]) if len(fields) > 8 else 0
+                amount = float(fields[9]) if len(fields) > 9 else 0
+                date_str = fields[30] if len(fields) > 30 else ""
+                time_str = fields[31] if len(fields) > 31 else ""
                 results[pfa_symbol] = {
                     "current": current,
                     "percent": round(pct, 2),
+                    "change": round(chg, 2),
                     "name": fields[0],
                     "open": float(fields[1]),
                     "high": float(fields[4]),
                     "low": float(fields[5]),
                     "last_close": last_close,
+                    "volume": vol,
+                    "amount": amount,
+                    "update_time": f"{date_str} {time_str}".strip(),
                 }
             elif sina_code.startswith("hk"):
                 # HK: eng_name,cn_name,open,last_close,high,low,current,change,pct,...
                 current = float(fields[6])
                 pct = float(fields[8])
+                chg = float(fields[7])
                 results[pfa_symbol] = {
                     "current": current,
                     "percent": round(pct, 2),
+                    "change": round(chg, 3),
                     "name": fields[1],
                     "open": float(fields[2]),
                     "high": float(fields[4]),
                     "low": float(fields[5]),
                     "last_close": float(fields[3]),
+                    "update_time": fields[17] if len(fields) > 17 else "",
                 }
             elif sina_code.startswith("gb_"):
                 # US: name,current,...

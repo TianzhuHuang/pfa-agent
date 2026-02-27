@@ -170,10 +170,10 @@ def render_expert_chat(holdings: List[Dict], val: Dict, user: Optional[Dict] = N
     # Chat header
     st.markdown(f"""
 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-    <span style="font-size:16px;font-weight:600;color:#E8EAED;">AI Expert</span>
-    <span style="background:#43A047;color:#fff;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;">LIVE</span>
+    <span style="font-size:16px;font-weight:600;color:#E8EAED;">投研助理</span>
+    <span style="background:rgba(66,133,244,0.2);color:#4285F4;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;">实时</span>
 </div>
-<div style="font-size:12px;color:#5F6368;margin-bottom:12px;">基于你的持仓，向 AI 投研专家提问</div>
+<div style="font-size:12px;color:#5F6368;margin-bottom:12px;">基于持仓数据，调仓/分析/备忘</div>
 """, unsafe_allow_html=True)
 
     # Chat container
@@ -211,19 +211,48 @@ def render_expert_chat(holdings: List[Dict], val: Dict, user: Optional[Dict] = N
 
 
 def inject_morning_greeting(val: Dict):
-    """Inject morning greeting if first visit today."""
+    """Inject proactive morning analysis if first visit today."""
     today = datetime.now(CST).strftime("%Y-%m-%d")
     if st.session_state.get("last_greeting_date") == today:
         return
 
+    total_v = val.get("total_value_cny", 0)
     total_pnl = val.get("total_pnl_cny", 0)
+    total_pct = val.get("total_pnl_pct", 0)
     sign = "+" if total_pnl >= 0 else ""
+    n = val.get("holding_count", 0)
+
+    # Find top gainer/loser
+    top_gain = {"name": "", "pct": 0}
+    top_loss = {"name": "", "pct": 0}
+    concentration_warning = ""
+
+    for acct_data in val.get("by_account", {}).values():
+        for h in acct_data.get("holdings", []):
+            pct = h.get("pnl_pct", 0)
+            weight = h.get("value_cny", 0) / total_v * 100 if total_v > 0 else 0
+            if pct > top_gain["pct"]:
+                top_gain = {"name": h.get("name", ""), "pct": pct}
+            if pct < top_loss["pct"]:
+                top_loss = {"name": h.get("name", ""), "pct": pct}
+            if weight > 30 and not concentration_warning:
+                concentration_warning = f"\n⚠️ **{h.get('name','')}** 仓位占 {weight:.0f}%，超过分散化建议线 30%"
 
     greeting = (
-        f"☀️ 早上好！昨日持仓{'盈利' if total_pnl >= 0 else '浮亏'} "
-        f"**{sign}¥{total_pnl:,.0f}**。\n\n"
-        f"是否需要我生成今日投研晨报？"
+        f"☀️ 早上好！你的持仓概况：\n\n"
+        f"📊 总资产 **¥{total_v:,.0f}** · {n} 只标的\n"
+        f"💰 累计收益 **{sign}¥{total_pnl:,.0f}** ({sign}{total_pct:.1f}%)\n"
     )
+
+    if top_gain["name"]:
+        greeting += f"📈 最大盈利：{top_gain['name']} +{top_gain['pct']:.1f}%\n"
+    if top_loss["name"]:
+        greeting += f"📉 最大亏损：{top_loss['name']} {top_loss['pct']:.1f}%\n"
+
+    if concentration_warning:
+        greeting += concentration_warning + "\n"
+
+    greeting += "\n你可以问我「分析持仓风险」或「生成今日晨报」"
 
     if "expert_chat" in st.session_state:
         st.session_state["expert_chat"].append({"role": "assistant", "content": greeting})
