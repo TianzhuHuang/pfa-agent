@@ -56,6 +56,7 @@
 - **存储**: `data/store/feeds/` 和 `data/store/analyses/`
 - **查询**: 支持按标的、来源、时间窗口、日期过滤
 - 所有抓取脚本（东方财富、RSS）均通过此层统一落库
+- **FeedItem 扩展字段**（可选，供个股情绪/概览使用）：`sentiment`（positive/negative/neutral）、`impact_pts`（对情绪分数的影响点数）；见 `docs/ui-design-system.md` §7.6
 
 ### 3.5 投研面板
 

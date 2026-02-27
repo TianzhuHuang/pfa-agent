@@ -56,6 +56,9 @@ def _clear_token():
 def get_user() -> dict:
     """Get current user from session or localStorage."""
     if not is_available():
+        # 本地模式：若用户点击过「退出」，则展示登录页，直到点击「进入本地模式」
+        if st.session_state.get("pfa_logged_out"):
+            return {}
         return {"user_id": "admin", "email": "本地模式", "mode": "local"}
 
     # Handle logout
@@ -103,6 +106,13 @@ def render_login_page():
     <div class="logo">PFA</div>
     <div class="sub">Portfolio Intelligence · AI-Powered</div>
 </div>""", unsafe_allow_html=True)
+
+    # 本地模式（无 Supabase）时提供「进入本地模式」入口
+    if not is_available():
+        if st.button("进入本地模式", type="primary", use_container_width=True, key="local_enter"):
+            st.session_state.pop("pfa_logged_out", None)
+            st.rerun()
+        st.stop()
 
     col_l, col_m, col_r = st.columns([1, 2, 1])
     with col_m:

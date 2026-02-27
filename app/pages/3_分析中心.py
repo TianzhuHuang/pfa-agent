@@ -26,16 +26,20 @@ portfolio = load_portfolio()
 holdings = portfolio.get("holdings", [])
 dark = st.session_state.get("dark_mode", True)
 
-st.header("分析中心")
+st.markdown('<h1 class="pfa-title" style="font-size:20px;font-weight:600;margin-bottom:24px;">分析中心</h1>', unsafe_allow_html=True)
 
 if not holdings:
     st.warning("请先添加持仓。")
     st.stop()
 
 # ===================================================================
-# Control console
+# 分析控制台（统一面板边界：标题栏 + 表单项 + 主/次按钮）
 # ===================================================================
-st.subheader("分析控制台")
+st.markdown("""
+<div class="pfa-control-panel">
+    <div class="pfa-control-panel-title">分析控制台</div>
+    <div class="pfa-control-panel-body">""", unsafe_allow_html=True)
+
 c1, c2, c3 = st.columns([2, 2, 1])
 hours = c1.selectbox("时间窗口", [24, 48, 72, 168], index=2,
                      format_func=lambda h: f"{h} 小时")
@@ -61,6 +65,8 @@ with col_f:
         st.session_state["hub_pipeline"] = result
         st.success("完成") if result["status"] == "ok" else st.warning("部分完成")
         st.rerun()
+
+st.markdown("</div></div>", unsafe_allow_html=True)
 
 # Display pipeline results
 pipe = st.session_state.get("hub_pipeline")
@@ -90,10 +96,10 @@ if pipe and pipe.get("analyst_result"):
                 st.text(line)
 
 # ===================================================================
-# History archive with visual rendering
+# 历史存档（统一区域标题）
 # ===================================================================
 st.markdown("---")
-st.subheader("历史存档")
+st.markdown('<div class="tv-section" style="margin-top:16px;"><div class="pfa-title" style="margin-bottom:12px;">历史存档</div></div>', unsafe_allow_html=True)
 
 
 def _render_structured(data, is_dark):
@@ -106,7 +112,7 @@ def _render_structured(data, is_dark):
     st.markdown(f"""
 <div class="sentiment-banner">
     <div><div class="sentiment-label" style="color:{s_color};">● {escape(label)}</div>
-    <div style="font-size:12px; color:#999;">{escape(ms.get('reason', ''))}</div></div>
+    <div style="font-size:14px; color:#9AA0A6;">{escape(ms.get('reason', ''))}</div></div>
     <div class="sentiment-score" style="color:{s_color};">{score}</div>
 </div>""", unsafe_allow_html=True)
 

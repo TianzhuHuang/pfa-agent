@@ -12,6 +12,11 @@
       "account": "平安证券",
       "memo_history": [
         {
+          "time": "2026-02-27T13:16:12.846663+08:00",
+          "action": "watch",
+          "text": "茅台最近有什么消息？"
+        },
+        {
           "time": "2026-02-26T14:31:04.440390+08:00",
           "action": "buy",
           "text": "茅台渠道改革持续推进,经销商缺货信号强,维持增持",
@@ -151,6 +156,95 @@
       "source": "ocr",
       "account": "雪盈证券",
       "updated_at": "2026-02-26T16:22:03.159850+08:00"
+    },
+    {
+      "symbol": "NIO",
+      "name": "蔚来",
+      "market": "US",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:17:47.723047+08:00",
+      "cost_price": 5.379,
+      "quantity": 180
+    },
+    {
+      "symbol": "T14",
+      "name": "津药达 仁堂集团股份有限...",
+      "market": "HK",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:17:47.724448+08:00",
+      "cost_price": 3.415,
+      "quantity": 600
+    },
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.623537+08:00",
+      "cost_price": 6290.69,
+      "quantity": 0.09285099
+    },
+    {
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.624658+08:00",
+      "cost_price": 4631.64,
+      "quantity": 2.26227233
+    },
+    {
+      "symbol": "USDT",
+      "name": "TetherUS",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.624941+08:00",
+      "cost_price": 1.0,
+      "quantity": 1649.68738967
+    },
+    {
+      "symbol": "SXT",
+      "name": "Space and ...",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.625199+08:00",
+      "cost_price": 0.33,
+      "quantity": 16.02418148
+    },
+    {
+      "symbol": "PAXG",
+      "name": "PAX Gold",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.625452+08:00",
+      "cost_price": 0.33,
+      "quantity": 6.347e-05
+    },
+    {
+      "symbol": "BNB",
+      "name": "BNB",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.625705+08:00",
+      "cost_price": 0.17,
+      "quantity": 0.00026605
+    },
+    {
+      "symbol": "FDUSD",
+      "name": "First Digital...",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.625961+08:00",
+      "cost_price": 0.13,
+      "quantity": 0.12630567
+    },
+    {
+      "symbol": "MORPHO",
+      "name": "MORPHO",
+      "market": "OTHER",
+      "source": "ocr",
+      "updated_at": "2026-02-27T12:46:38.626222+08:00",
+      "quantity": 0.04071626
     }
   ],
   "channels": {

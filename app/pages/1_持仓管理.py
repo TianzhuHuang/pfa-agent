@@ -172,7 +172,7 @@ with col_left:
 
     with tab_ocr:
         img = st.file_uploader("上传截图", type=["png","jpg","jpeg","webp"], key="oi")
-        oa = st.text_input("账户", placeholder="平安证券", key="oa")
+        oa = st.text_input("账户（可选，全局默认）", placeholder="平安证券", key="oa")
         if img:
             st.image(img, use_container_width=True)
             if st.button("AI 识别", type="primary", key="og"):
@@ -185,19 +185,41 @@ with col_left:
                     st.error(r.get("error","失败"))
         ocr = st.session_state.get("ocr_data")
         if ocr:
-            ed = st.data_editor(pd.DataFrame(ocr), num_rows="dynamic", use_container_width=True, hide_index=True)
+            df = pd.DataFrame(ocr)
+            default_acct = oa.strip()
+            if "account" not in df.columns:
+                # 为每一行增加可编辑的账户列，默认使用上方输入框
+                df["account"] = default_acct or ""
+            ed = st.data_editor(
+                df,
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+            )
             if st.button("导入", type="primary", key="oimp"):
                 p = load_portfolio()
                 now = datetime.now(CST).isoformat()
                 for _, row in ed.iterrows():
-                    sym = str(row.get("symbol","")).strip()
-                    if not sym: continue
-                    e = {"symbol":sym, "name":str(row.get("name","")), "market":row.get("market","A"), "source":"ocr", "updated_at":now}
-                    for k in ("cost_price","quantity"):
+                    sym = str(row.get("symbol", "")).strip()
+                    if not sym:
+                        continue
+                    e = {
+                        "symbol": sym,
+                        "name": str(row.get("name", "")),
+                        "market": row.get("market", "A"),
+                        "source": "ocr",
+                        "updated_at": now,
+                    }
+                    for k in ("cost_price", "quantity"):
                         v = row.get(k)
-                        if v and float(v)>0: e[k]=float(v)
-                    if oa.strip(): e["account"]=oa.strip()
-                    p.setdefault("holdings",[]).append(e)
+                        if v and float(v) > 0:
+                            e[k] = float(v)
+                    acct = str(row.get("account", "") or "").strip()
+                    if not acct and default_acct:
+                        acct = default_acct
+                    if acct:
+                        e["account"] = acct
+                    p.setdefault("holdings", []).append(e)
                 save_portfolio(p)
                 del st.session_state["ocr_data"]
                 st.rerun()
@@ -209,10 +231,20 @@ with col_left:
             try:
                 parsed = parse_csv_holdings(raw) if up.name.endswith(".csv") else parse_json_holdings(raw)
                 if parsed:
-                    st.dataframe(pd.DataFrame(parsed), use_container_width=True, hide_index=True)
+                    df = pd.DataFrame(parsed)
+                    if "account" not in df.columns:
+                        # 允许用户在导入前为每一行指定账户
+                        df["account"] = ""
+                    ed = st.data_editor(
+                        df,
+                        num_rows="dynamic",
+                        use_container_width=True,
+                        hide_index=True,
+                    )
                     if st.button("导入", type="primary", key="fimp"):
                         p = load_portfolio()
-                        p.get("holdings",[]).extend(parsed)
+                        records = ed.to_dict("records")
+                        p.get("holdings", []).extend(records)
                         update_holdings_bulk(p["holdings"])
                         st.rerun()
             except Exception as e:
@@ -227,21 +259,34 @@ with col_right:
     <span style="background:{COLORS['accent']}; color:#000; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">Live</span>
 </div>""", unsafe_allow_html=True)
 
-    # Chat container
+    # Chat container（深色卡片内，自定义输入行，避免底部白条）
     if "portfolio_chat" not in st.session_state:
         st.session_state["portfolio_chat"] = [
             {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以对我说：\n- 「加仓 500 股中海油 价格 21.5」\n- 「腾讯控股数量改为 300」\n- 「删除上海机场」\n- 「记录：看好茅台渠道改革长期逻辑」"}
         ]
 
-    # Render chat bubbles
-    chat_container = st.container(height=450)
+    chat_container = st.container(height=360)
     with chat_container:
         for msg in st.session_state["portfolio_chat"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # Input
-    ai_input = st.chat_input("管理持仓...")
+    # 输入行：文本框 + 发送按钮，替代 st.chat_input，彻底避免白底
+    ic1, ic2 = st.columns([4, 1])
+    with ic1:
+        portfolio_input = st.text_input(
+            "管理持仓...",
+            key="portfolio_chat_input",
+            label_visibility="collapsed",
+            placeholder="例如：加仓 500 股中海油 价格 21.5",
+        )
+    with ic2:
+        send_clicked = st.button("发送", key="portfolio_chat_send", type="primary")
+
+    ai_input = None
+    if send_clicked and portfolio_input.strip():
+        ai_input = portfolio_input.strip()
+        st.session_state["portfolio_chat_input"] = ""
 
     if ai_input:
         st.session_state["portfolio_chat"].append({"role": "user", "content": ai_input})

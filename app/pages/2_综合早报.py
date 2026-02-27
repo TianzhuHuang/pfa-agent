@@ -55,13 +55,21 @@ if st.button("生成今日晨报", type="primary", use_container_width=True):
 # --- Load briefing ---
 briefing_data = None
 raw = st.session_state.get("briefing")
-if raw and raw.get("analyst_result"):
-    briefing_data = raw["analyst_result"].get("briefing")
-    if not briefing_data:
-        try:
-            briefing_data = json.loads(raw["analyst_result"].get("analysis", "{}"))
-        except (json.JSONDecodeError, TypeError):
-            pass
+
+if raw:
+    # 优先使用本次流水线结果
+    if raw.get("analyst_result"):
+        briefing_data = raw["analyst_result"].get("briefing")
+        if not briefing_data:
+            try:
+                briefing_data = json.loads(raw["analyst_result"].get("analysis", "{}"))
+            except (json.JSONDecodeError, TypeError):
+                pass
+    # 若流水线未成功产生分析结果，向用户暴露错误信息（如未配置 DASHSCOPE_API_KEY）
+    elif raw.get("status") != "ok":
+        err_msg = raw.get("error") or "分析服务暂不可用，请检查 DASHSCOPE_API_KEY / OPENAI_API_KEY 配置。"
+        st.error(f"晨报生成失败：{err_msg}")
+
 if not briefing_data:
     analyses = load_all_analyses()
     if analyses:
@@ -69,6 +77,7 @@ if not briefing_data:
             briefing_data = json.loads(analyses[0].analysis)
         except (json.JSONDecodeError, TypeError):
             pass
+
 if not briefing_data:
     st.info("点击上方按钮生成晨报。")
     st.stop()
@@ -96,10 +105,10 @@ st.markdown(f"""
 <div class="sentiment-banner">
     <div>
         <div class="sentiment-label" style="color:{s_color};">● {label}</div>
-        <div style="font-size:13px; color:{'#999' if dark else '#666'}; margin-top:4px;">{escape(reason)}</div>
+        <div style="font-size:14px; color:{'#9AA0A6' if dark else '#5F6368'}; margin-top:4px;">{escape(reason)}</div>
     </div>
     <div style="text-align:right;">
-        <div style="font-size:11px; color:{'#666' if dark else '#999'};">情绪指数</div>
+        <div style="font-size:12px; font-weight:500; color:{'#5F6368' if dark else '#9AA0A6'};">情绪指数</div>
         <div class="sentiment-score" style="color:{s_color};">{score}</div>
     </div>
 </div>
@@ -107,57 +116,75 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ===================================================================
-# Must-Reads
+# Must-Reads (TradingView-style 观点卡片)
 # ===================================================================
-st.subheader("今日必读")
+st.markdown('<div class="tv-section"><div class="tv-section-title">今日必读</div></div>', unsafe_allow_html=True)
 
 for item in briefing_data.get("must_reads", [])[:5]:
-    priority = item.get("priority", "medium")
     sentiment = item.get("sentiment", "neutral")
     title = escape(str(item.get("title", "")))
     summary = escape(str(item.get("summary", "")))
     impact = escape(str(item.get("impact_on_portfolio", "")))
     symbol = escape(str(item.get("related_symbol", "")))
+    sym_raw = (item.get("related_symbol") or "").strip()
+    sym_for_link = sym_raw.split(".")[0] if sym_raw else ""
+    ticker_link = f'/?page=ticker&symbol={escape(sym_for_link)}' if sym_for_link else ""
     url = item.get("url", "")
-    url_html = f' · <a href="{escape(url)}" target="_blank" style="color:{COLORS["accent"] if dark else COLORS["bullish"]};">原文↗</a>' if url else ""
+    url_html = f' · <a href="{escape(url)}" target="_blank" style="color:#4285F4;">原文↗</a>' if url else ""
+    pill_class = "long" if sentiment == "positive" else "short" if sentiment == "negative" else "neutral"
+    pill_text = "看多" if sentiment == "positive" else "看空" if sentiment == "negative" else "中性"
 
-    st.markdown(f"""
-<div class="pfa-card {priority}">
-    <div class="card-title">{title} <span class="badge badge-{sentiment}">{sentiment}</span></div>
-    <div class="card-body">{summary}</div>
-    <div class="card-body" style="color:{COLORS['accent'] if dark else COLORS['bullish']};">💼 {impact}</div>
-    <div class="card-meta">{symbol}{url_html}</div>
-</div>""", unsafe_allow_html=True)
+    card_inner = f"""
+<div class="tv-view-card">
+    <div class="tv-card-header">
+        <span class="tv-card-symbol">{symbol or "—"}</span>
+        <span class="direction-pill {pill_class}">{pill_text}</span>
+    </div>
+    <div class="tv-card-title">{title}</div>
+    <div class="tv-card-snippet">{summary}</div>
+    <div class="tv-card-meta" style="color:#4285F4;">💼 {impact}</div>
+    <div class="tv-card-meta">{symbol}{url_html}</div>
+</div>"""
+    if ticker_link:
+        st.markdown(f'<a href="{ticker_link}" class="tv-view-card-link" style="text-decoration:none;color:inherit;display:block;">{card_inner}</a>', unsafe_allow_html=True)
+    else:
+        st.markdown(card_inner, unsafe_allow_html=True)
 
 # ===================================================================
-# Portfolio Moves (A-share: red=up, green=down)
+# Portfolio Moves (TradingView-style 标的 + 方向 + 摘要)
 # ===================================================================
-st.markdown("---")
-st.subheader("持仓异动")
+st.markdown('<div class="tv-section" style="margin-top:24px;"><div class="tv-section-title">持仓异动</div></div>', unsafe_allow_html=True)
 
 moves = briefing_data.get("portfolio_moves", [])
 if moves:
     grid_html = '<div class="move-grid">'
     for move in moves:
         s = move.get("sentiment", "neutral")
-        if s == "positive":
-            border_color = COLORS["positive"]  # 红
-        elif s == "negative":
-            border_color = COLORS["negative"]  # 绿
-        else:
-            border_color = COLORS["neutral"]
+        pill_class = "long" if s == "positive" else "short" if s == "negative" else "neutral"
+        pill_text = "看多" if s == "positive" else "看空" if s == "negative" else "中性"
 
         name = escape(str(move.get("name", "")))
         sym = escape(str(move.get("symbol", "")))
+        sym_raw = (move.get("symbol") or "").strip()
+        sym_for_link = sym_raw.split(".")[0] if sym_raw else sym_raw or ""
+        ticker_link = f'/?page=ticker&symbol={escape(sym_for_link)}' if sym_for_link else ""
         evt = escape(str(move.get("event_summary", "")))
         hint = escape(str(move.get("action_hint", "")))
 
-        grid_html += f"""
-<div class="pfa-card" style="border-left:4px solid {border_color};">
-    <div class="card-title">{name} <span style="color:{'#666' if dark else '#999'}; font-size:12px;">{sym}</span></div>
-    <div class="card-body">{evt}</div>
-    <div class="card-meta" style="color:{COLORS['accent'] if dark else COLORS['bullish']};">👉 {hint}</div>
+        card_inner = f"""
+<div class="tv-view-card" style="border-left:3px solid {COLORS['positive'] if s == 'positive' else COLORS['negative'] if s == 'negative' else COLORS['neutral']};">
+    <div class="tv-card-header">
+        <span class="tv-card-symbol">{sym or name}</span>
+        <span class="direction-pill {pill_class}">{pill_text}</span>
+    </div>
+    <div class="tv-card-title">{name}</div>
+    <div class="tv-card-snippet">{evt}</div>
+    <div class="tv-card-meta" style="color:#4285F4;">👉 {hint}</div>
 </div>"""
+        if ticker_link:
+            grid_html += f'<a href="{ticker_link}" class="tv-view-card-link" style="text-decoration:none;color:inherit;display:block;">{card_inner}</a>'
+        else:
+            grid_html += card_inner
     grid_html += '</div>'
     st.markdown(grid_html, unsafe_allow_html=True)
 

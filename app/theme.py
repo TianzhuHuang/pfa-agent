@@ -24,14 +24,18 @@ COLORS = {
 
 
 def inject_theme():
-    """Inject global CSS based on theme toggle."""
-    dark = st.session_state.get("dark_mode", False)
+    """Inject global CSS based on theme toggle.
 
-    bg = COLORS["bg_dark"] if dark else COLORS["bg_light"]
-    card_bg = COLORS["bg_card_dark"] if dark else COLORS["bg_card_light"]
-    text = COLORS["text_dark"] if dark else COLORS["text_light"]
-    border = COLORS["border_dark"] if dark else COLORS["border_light"]
-    sub_text = "#999" if dark else "#666"
+    强制使用暗色主题，彻底禁止白底灰字（旧页面也统一成深色风格）。
+    """
+    dark = True
+    st.session_state["dark_mode"] = True
+
+    bg = COLORS["bg_dark"]
+    card_bg = COLORS["bg_card_dark"]
+    text = COLORS["text_dark"]
+    border = COLORS["border_dark"]
+    sub_text = "#999"
 
     st.markdown(f"""<style>
     /* Global */
@@ -124,10 +128,12 @@ def inject_theme():
     [data-testid="stExpander"] {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; }}
     [data-testid="stExpander"] summary {{ color: {text}; }}
 
-    /* Select / Input */
+    /* Select / Input（统一深色，禁止白底灰字） */
     .stSelectbox > div > div {{ background: {card_bg} !important; color: {text} !important; }}
     .stTextInput > div > div > input {{ background: {card_bg} !important; color: {text} !important; border-color: {border} !important; }}
     .stNumberInput > div > div > input {{ background: {card_bg} !important; color: {text} !important; }}
+    input, textarea {{ background: {card_bg} !important; color: {text} !important; border-color: {border} !important; }}
+    input::placeholder, textarea::placeholder {{ color: {sub_text} !important; }}
 
     /* Metric */
     [data-testid="stMetricValue"] {{ color: {text} !important; }}
@@ -136,6 +142,15 @@ def inject_theme():
     [data-testid="stChatMessage"] {{ background: {card_bg} !important; border: 1px solid {border}; border-radius: 10px; margin-bottom: 8px; }}
     [data-testid="stChatInput"] {{ border-color: {border} !important; }}
     [data-testid="stChatInput"] textarea {{ background: {card_bg} !important; color: {text} !important; }}
+
+    /* Alerts: 统一深色，禁止白底灰字 */
+    [data-testid="stAlert"], .stAlert, div[data-baseweb="notification"] {{
+        background: #1A1D26 !important; border: 1px solid #2D3139 !important;
+        color: #E8EAED !important;
+    }}
+    [data-testid="stAlert"] *, .stAlert *, div[data-baseweb="notification"] * {{
+        color: #E8EAED !important;
+    }}
 
     /* Tabs */
     .stTabs [data-baseweb="tab-list"] {{ background: transparent; }}

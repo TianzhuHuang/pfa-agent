@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import uuid
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -49,6 +50,9 @@ class FeedItem:
     market: str
     fetched_at: str = ""
     tags: List[str] = field(default_factory=list)
+    # 个股概览/情绪扩展（可选）：positive/negative/neutral；影响点数供 Sentiment Drivers 展示
+    sentiment: Optional[str] = None
+    impact_pts: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -77,6 +81,24 @@ class AnalysisRecord:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
+@dataclass
+class TimelineEvent:
+    """一条持仓时间轴事件（AI 投资日记）。"""
+
+    id: str
+    timestamp: str
+    event_type: str  # TRADE / AI_INSIGHT / USER_MEMO / ...
+    content: str
+    reasoning: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "TimelineEvent":
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
 # ---------------------------------------------------------------------------
 # Storage helpers
 # ---------------------------------------------------------------------------
@@ -95,6 +117,50 @@ def _analysis_dir(user_id: str = DEFAULT_USER) -> Path:
     d = _user_store_dir(user_id) / "analyses"
     _ensure_dir(d)
     return d
+
+
+def _timeline_path(user_id: str = DEFAULT_USER) -> Path:
+    """Single JSON file per user storing all timeline events, grouped by symbol."""
+    d = _user_store_dir(user_id)
+    _ensure_dir(d)
+    return d / "timeline_events.json"
+
+
+def _chat_history_path(user_id: str = DEFAULT_USER) -> Path:
+    """Chat history JSON for AI expert panel (persist across refresh)."""
+    d = _user_store_dir(user_id)
+    _ensure_dir(d)
+    return d / "chat_history.json"
+
+
+# ---------------------------------------------------------------------------
+# Chat history: persist expert chat messages
+# ---------------------------------------------------------------------------
+
+
+def load_chat_history(user_id: str = DEFAULT_USER) -> List[Dict[str, Any]]:
+    """Load chat messages from disk. Returns list of {role, content, ...}; empty if missing."""
+    path = _chat_history_path(user_id or DEFAULT_USER)
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return []
+
+
+def save_chat_history(messages: List[Dict[str, Any]], user_id: str = DEFAULT_USER) -> None:
+    """Persist chat messages (e.g. after each turn). Truncate to last N if needed."""
+    path = _chat_history_path(user_id or DEFAULT_USER)
+    _ensure_dir(path.parent)
+    # Keep last 200 messages to avoid huge files
+    out = messages[-200:] if len(messages) > 200 else messages
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
 
 
 # Legacy path (for backward compatibility / migration)
@@ -241,6 +307,112 @@ def load_analysis_by_date(
 ) -> List[AnalysisRecord]:
     """Load analyses matching a date string (YYYY-MM-DD)."""
     return [a for a in load_all_analyses(user_id) if date_str in a.analysis_time]
+
+
+# ---------------------------------------------------------------------------
+# Timeline events: per user + symbol investment diary
+# ---------------------------------------------------------------------------
+
+
+def _load_timeline_raw(user_id: str = DEFAULT_USER) -> Dict[str, List[Dict[str, Any]]]:
+    """Load raw timeline JSON for a user. Structure: {symbol: [event_dict,...]}."""
+    path = _timeline_path(user_id)
+    if not path.exists():
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            # Ensure values are lists
+            return {
+                str(sym): (events if isinstance(events, list) else [])
+                for sym, events in data.items()
+            }
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {}
+
+
+def _save_timeline_raw(
+    data: Dict[str, List[Dict[str, Any]]],
+    user_id: str = DEFAULT_USER,
+) -> None:
+    """Persist raw timeline JSON for a user."""
+    path = _timeline_path(user_id)
+    _ensure_dir(path.parent)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def add_timeline_event(
+    user_id: str,
+    symbol: str,
+    event_data: Dict[str, Any],
+) -> TimelineEvent:
+    """
+    Append a timeline event for a given user + symbol.
+
+    - Auto-fill id / timestamp if missing.
+    - event_type / content should be provided by caller; reasoning is optional.
+    """
+    symbol = str(symbol).strip()
+    if not symbol:
+        raise ValueError("symbol is required for add_timeline_event")
+
+    raw = _load_timeline_raw(user_id or DEFAULT_USER)
+    events_raw = raw.get(symbol, [])
+
+    # Prepare event payload with defaults
+    eid = event_data.get("id") or uuid.uuid4().hex
+    ts = event_data.get("timestamp")
+    if not ts:
+        ts = datetime.now(CST).isoformat()
+
+    payload: Dict[str, Any] = {
+        "id": eid,
+        "timestamp": ts,
+        "event_type": event_data.get("event_type", "USER_MEMO"),
+        "content": event_data.get("content", "").strip(),
+        "reasoning": event_data.get("reasoning", "").strip(),
+    }
+
+    ev = TimelineEvent.from_dict(payload)
+    events_raw.append(ev.to_dict())
+
+    # Sort by timestamp descending when saving, so newest first when reading raw
+    try:
+        events_raw.sort(
+            key=lambda x: x.get("timestamp", ""),
+            reverse=True,
+        )
+    except TypeError:
+        # Fallback: keep append order
+        pass
+
+    raw[symbol] = events_raw
+    _save_timeline_raw(raw, user_id or DEFAULT_USER)
+    return ev
+
+
+def get_timeline_events(
+    user_id: str,
+    symbol: str,
+) -> List[TimelineEvent]:
+    """Return all timeline events for a given user + symbol (newest first)."""
+    symbol = str(symbol).strip()
+    if not symbol:
+        return []
+    raw = _load_timeline_raw(user_id or DEFAULT_USER)
+    events_raw = raw.get(symbol, [])
+    events: List[TimelineEvent] = []
+    for d in events_raw:
+        try:
+            events.append(TimelineEvent.from_dict(d))
+        except TypeError:
+            continue
+    # Ensure newest first
+    events.sort(key=lambda e: e.timestamp, reverse=True)
+    return events
 
 
 # ---------------------------------------------------------------------------

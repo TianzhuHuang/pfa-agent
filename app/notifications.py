@@ -42,7 +42,7 @@ def add_notification(ntype: str, title: str, body: str, severity: str = "info"):
 def render_bell_icon():
     """Render notification bell in top nav area."""
     count = _get_unread_count()
-    badge = f'<span style="background:#E53935;color:#fff;border-radius:50%;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;">{count}</span>' if count > 0 else ""
+    badge = f'<span style="background:#E53935;color:#fff;border-radius:50%;padding:2px 6px;font-size:12px;font-weight:600;margin-left:4px;">{count}</span>' if count > 0 else ""
 
     return f'🔔{badge}'
 
@@ -63,10 +63,10 @@ def render_notification_panel():
         st.markdown(f"""
 <div class="card" style="{read_style}padding:12px;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;font-weight:600;color:#E8EAED;">{severity_icon} {n.get('title', '')}</span>
-        <span style="font-size:11px;color:#5F6368;">{type_label} · {n.get('time', '')[:16]}</span>
+        <span style="font-size:14px;font-weight:600;color:#E8EAED;">{severity_icon} {n.get('title', '')}</span>
+        <span style="font-size:12px;font-weight:500;color:#5F6368;">{type_label} · {n.get('time', '')[:16]}</span>
     </div>
-    <div style="font-size:13px;color:#9AA0A6;margin-top:6px;">{n.get('body', '')[:120]}</div>
+    <div style="font-size:14px;color:#9AA0A6;margin-top:6px;">{n.get('body', '')[:120]}</div>
 </div>""", unsafe_allow_html=True)
 
         # Mark as read

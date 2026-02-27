@@ -157,8 +157,15 @@ def update_holdings_bulk(holdings: List[Dict]) -> dict:
         }
         for num_key in ("cost_price", "quantity", "position_pct"):
             val = h.get(num_key)
-            if val and float(val) > 0:
-                entry[num_key] = float(val)
+            if val is not None and str(val).strip() != "":
+                try:
+                    fv = float(val)
+                    if num_key == "quantity" or fv > 0:
+                        entry[num_key] = fv
+                except (ValueError, TypeError):
+                    pass
+        if h.get("account") is not None:
+            entry["account"] = str(h.get("account", "")).strip() or "默认"
         clean.append(entry)
     portfolio["holdings"] = clean
     save_portfolio(portfolio)

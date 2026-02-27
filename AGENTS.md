@@ -11,9 +11,16 @@ PFA (Personal Finance Agent) is an AI-powered investment research assistant for 
 ### Running the project
 
 - **Python 3.12+** required. Install: `pip install -r requirements.txt`
+- **本地与云端差异**：云端 Cursor 在固定根目录、依赖齐全的环境下跑；本地 checkout 后若未装依赖、未建 `data/`/`config` 或未在根目录启动，容易出现 ImportError 或找不到配置。建议在项目根目录执行一次：`python3 scripts/init_pfa_env.py`，再运行下面命令。详见 `docs/local-environment.md`。
 - **Streamlit UI**: `streamlit run app/pfa_dashboard.py --server.port 8501`
 - **Scheduler (auto briefing + alerts)**: `python -m pfa.scheduler --run-now`
 - **Alert scan only**: `python -c "from pfa.alert_engine import run_alert_scan; run_alert_scan()"`
+- Portfolio validation: `python3 scripts/validate_portfolio.py config/my-portfolio.json`
+- News fetching: `python3 scripts/fetch_holding_news.py` (East Money API)
+- RSS fetching: `python3 scripts/fetch_rss.py` (from `channels.rss_urls` in portfolio)
+- Deep analysis: `python3 scripts/fetch_holding_news.py --analyze` (requires `DASHSCOPE_API_KEY`)
+- **Control Center** (Streamlit): 持仓管理 / 综合早报 / 分析中心 / 个股深度 / 数据源配置
+- Data stored in `data/store/` (unified layer) and `data/raw/` (legacy).
 
 ### Pages (5)
 
