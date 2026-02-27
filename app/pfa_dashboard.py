@@ -45,13 +45,57 @@ else:
 # --- Empty state: onboarding ---
 if not holdings:
     st.markdown("""
-<div class="empty-state">
+<style>
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+.onboard-hero {
+    text-align: center; padding: 60px 20px 40px;
+    animation: fadeInUp 0.8s ease-out;
+}
+.onboard-hero .icon { font-size: 56px; margin-bottom: 16px; animation: pulse 2s infinite; }
+.onboard-hero .title { font-size: 28px; font-weight: 700; color: #E8EAED; margin-bottom: 8px; }
+.onboard-hero .desc { font-size: 15px; color: #9AA0A6; max-width: 400px; margin: 0 auto; }
+.onboard-steps {
+    display: flex; justify-content: center; gap: 12px; margin: 24px 0;
+    animation: fadeInUp 1s ease-out 0.3s both;
+}
+.onboard-step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #5F6368;
+}
+.onboard-step .num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #4285F4; color: #fff; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+}
+.onboard-tabs-wrapper { animation: fadeInUp 1.2s ease-out 0.6s both; }
+</style>
+
+<div class="onboard-hero">
     <div class="icon">📊</div>
     <div class="title">Welcome to PFA</div>
-    <div class="desc">添加你的第一笔持仓，开始智能投研之旅</div>
-</div>""", unsafe_allow_html=True)
+    <div class="desc">三步开始：添加持仓 → AI 分析 → 自动推送</div>
+</div>
 
-    st.markdown("---")
+<div class="onboard-steps">
+    <div class="onboard-step"><span class="num">1</span> 录入持仓</div>
+    <div class="onboard-step" style="color:#2D3139;">→</div>
+    <div class="onboard-step"><span class="num" style="background:#5F6368;">2</span> AI 分析</div>
+    <div class="onboard-step" style="color:#2D3139;">→</div>
+    <div class="onboard-step"><span class="num" style="background:#5F6368;">3</span> 每日推送</div>
+</div>
+
+<div class="onboard-tabs-wrapper">
+""", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     from pfa.stock_search import search_stock
     from pfa.screenshot_ocr import extract_holdings_from_image
