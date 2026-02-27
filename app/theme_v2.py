@@ -203,24 +203,43 @@ def inject_v2_theme():
 
 
 def render_topnav(active: str = "portfolio", user_email: str = ""):
-    """Render professional top navigation bar."""
-    def c(name):
-        return "on" if name == active else ""
+    """Render top navigation using Streamlit native navigation (no new tabs)."""
+    # Custom CSS for horizontal nav look
+    st.markdown("""<style>
+    .nav-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+               padding: 8px 0; border-bottom: 1px solid #2D3139; }
+    .nav-row .logo { font-size: 18px; font-weight: 700; color: #E8EAED; margin-right: 16px; }
+    .nav-row .user-info { margin-left: auto; font-size: 12px; color: #5F6368; }
+    </style>""", unsafe_allow_html=True)
 
-    user_html = ""
-    if user_email:
-        user_html = f'<span class="user">{escape(user_email)} <a href="/?logout=1">退出</a></span>'
+    cols = st.columns([1, 2, 2, 2, 2, 3])
+    cols[0].markdown('<span style="font-size:18px;font-weight:700;color:#E8EAED;">PFA</span>', unsafe_allow_html=True)
 
-    st.markdown(f"""
-<div class="topnav">
-    <div style="display:flex;align-items:center;">
-        <span class="logo">PFA</span>
-        <div class="nav" style="margin-left:32px;">
-            <a href="/" class="{c('portfolio')}">Portfolio</a>
-            <a href="/综合早报" class="{c('briefing')}">Briefing</a>
-            <a href="/分析中心" class="{c('analysis')}">Analysis</a>
-            <a href="/数据源配置" class="{c('settings')}">Settings</a>
-        </div>
-    </div>
-    {user_html}
-</div>""", unsafe_allow_html=True)
+    pages = [
+        ("Portfolio", "portfolio", "app/pfa_dashboard.py"),
+        ("Briefing", "briefing", "app/pages/2_综合早报.py"),
+        ("Analysis", "analysis", "app/pages/3_分析中心.py"),
+        ("Settings", "settings", "app/pages/5_数据源配置.py"),
+    ]
+
+    for i, (label, key, page_path) in enumerate(pages):
+        with cols[i + 1]:
+            if key == active:
+                st.markdown(f'<span style="color:#4285F4;font-weight:600;font-size:14px;border-bottom:2px solid #4285F4;padding-bottom:4px;">{label}</span>', unsafe_allow_html=True)
+            else:
+                try:
+                    st.page_link(page_path, label=label)
+                except Exception:
+                    st.markdown(f'<span style="color:#9AA0A6;font-size:14px;">{label}</span>', unsafe_allow_html=True)
+
+    with cols[5]:
+        if user_email:
+            c1, c2 = st.columns([3, 1])
+            c1.caption(user_email)
+            if c2.button("退出", key="nav_logout"):
+                from app.auth_v2 import _clear_token
+                from pfa.data.supabase_store import sign_out
+                sign_out()
+                st.session_state.pop("pfa_user", None)
+                _clear_token()
+                st.rerun()

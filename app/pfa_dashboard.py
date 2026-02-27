@@ -89,10 +89,10 @@ if not holdings:
     with tab_s:
         q = st.text_input("搜索股票", placeholder="茅台、00700、AAPL")
         if q and len(q.strip()) >= 1:
-            for r in (search_stock(q) or [])[:6]:
+            for idx, r in enumerate((search_stock(q) or [])[:6]):
                 ca, cb = st.columns([4, 1])
                 ca.markdown(f"**{r['code']}** {r['name']} · {r['market_raw']}")
-                if cb.button("添加", key=f"a_{r['code']}", type="primary"):
+                if cb.button("添加", key=f"a_{idx}_{r['code']}_{r.get('market','')}", type="primary"):
                     _save([{"symbol": r["code"], "name": r["name"], "market": r["market"], "source": "search"}])
                     st.rerun()
     with tab_o:
