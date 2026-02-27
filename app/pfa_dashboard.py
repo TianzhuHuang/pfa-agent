@@ -37,7 +37,8 @@ render_topnav(active="portfolio", user_email=user.get("email", ""))
 holdings = []
 if user.get("mode") == "supabase":
     from pfa.data.supabase_store import load_holdings
-    holdings = load_holdings(user["user_id"])
+    _at = user.get("access_token", "")
+    holdings = load_holdings(user["user_id"], _at)
 else:
     from agents.secretary_agent import load_portfolio
     holdings = load_portfolio().get("holdings", [])
@@ -79,7 +80,8 @@ if not holdings:
     def _save(new_list):
         if user.get("mode") == "supabase":
             from pfa.data.supabase_store import load_holdings as lh, save_holdings as sh
-            sh(user["user_id"], lh(user["user_id"]) + new_list)
+            _at = user.get("access_token", "")
+            sh(user["user_id"], lh(user["user_id"], _at) + new_list, _at)
         else:
             from agents.secretary_agent import add_holding
             for h in new_list:

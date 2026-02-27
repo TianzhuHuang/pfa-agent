@@ -15,14 +15,37 @@ from typing import Any, Dict, List, Optional
 CST = timezone(timedelta(hours=8))
 
 
+_cached_client = None
+
 def _get_client():
-    """Get Supabase client (lazy init)."""
+    """Get base Supabase client (anon key, for auth operations)."""
+    global _cached_client
+    if _cached_client is not None:
+        return _cached_client
     from supabase import create_client
     url = os.environ.get("SUPABASE_URL", "")
     key = os.environ.get("SUPABASE_ANON_KEY", "")
     if not url or not key:
         return None
-    return create_client(url, key)
+    _cached_client = create_client(url, key)
+    return _cached_client
+
+
+def _get_auth_client(access_token: str = ""):
+    """Get authenticated client (for RLS-protected operations).
+    
+    If access_token provided, sets the session so RLS policies work.
+    Falls back to anon client if no token.
+    """
+    client = _get_client()
+    if not client:
+        return None
+    if access_token:
+        try:
+            client.postgrest.auth(access_token)
+        except Exception:
+            pass
+    return client
 
 
 def _auth_client(access_token: str):
@@ -129,7 +152,7 @@ def sign_out():
 
 def save_holdings(user_id: str, holdings: List[Dict], access_token: str = "") -> bool:
     """Replace all holdings for a user."""
-    client = _get_client()
+    client = _get_auth_client(access_token)
     if not client:
         return False
     try:
@@ -159,9 +182,9 @@ def save_holdings(user_id: str, holdings: List[Dict], access_token: str = "") ->
         return False
 
 
-def load_holdings(user_id: str) -> List[Dict]:
+def load_holdings(user_id: str, access_token: str = "") -> List[Dict]:
     """Load all holdings for a user."""
-    client = _get_client()
+    client = _get_auth_client(access_token)
     if not client:
         return []
     try:
