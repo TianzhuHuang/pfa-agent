@@ -44,7 +44,8 @@ def _call_openai(prompt: str, api_key: str) -> Tuple[str, Dict]:
         json={"model": "gpt-4o-mini",
               "messages": [{"role": "user", "content": prompt}],
               "temperature": 0.2, "max_tokens": 1500},
-        timeout=60,
+        timeout=120,
+        proxies={"http": None, "https": None},
     )
     resp.raise_for_status()
     body = resp.json()
@@ -60,6 +61,7 @@ def _call_dashscope(prompt: str, api_key: str) -> Tuple[str, Dict]:
               "messages": [{"role": "user", "content": prompt}],
               "temperature": 0.2, "max_tokens": 1500},
         timeout=120,
+        proxies={"http": None, "https": None},
     )
     resp.raise_for_status()
     body = resp.json()

@@ -1,0 +1,65 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* PFA v2 — Stake + Gemini 极简深色（字体由 layout Inter 提供） */
+
+:root {
+  --pfa-bg: #000000;
+  --pfa-bg2: #0a0a0a;
+  --pfa-bg3: #1a1a1a;
+  --pfa-text: #ffffff;
+  --pfa-text2: #888888;
+  --pfa-accent: #1976d2;
+  --pfa-up: #00e701;
+  --pfa-down: #ff4e33;
+}
+
+@theme inline {
+  --color-background: var(--pfa-bg);
+  --color-foreground: var(--pfa-text);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  background: var(--pfa-bg);
+  color: var(--pfa-text);
+}
+
+/* Ask PFA 流式输出：contain 减少重排闪烁 */
+.prose-streaming {
+  contain: layout;
+  transition: opacity 0.05s ease-out;
+}
+
+/* 数据更新闪烁（雪球风格，颜色由 ColorSchemeContext 动态设置 --pfa-up/--pfa-down） */
+@keyframes pfa-flash-up {
+  0% { color: var(--pfa-up, #00e701); }
+  100% { color: inherit; }
+}
+@keyframes pfa-flash-down {
+  0% { color: var(--pfa-down, #ff4e33); }
+  100% { color: inherit; }
+}
+.pfa-flash-up {
+  animation: pfa-flash-up 0.4s ease-out;
+}
+.pfa-flash-down {
+  animation: pfa-flash-down 0.4s ease-out;
+}
+
+/* 登录页 Logo 呼吸灯 */
+@keyframes pfa-breathe {
+  0%,
+  100% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.05);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 20px 4px rgba(255, 255, 255, 0.08);
+  }
+}

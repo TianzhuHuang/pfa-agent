@@ -23,7 +23,7 @@ user = get_user()
 if not user.get('user_id'):
     st.warning('请先登录。')
     st.stop()
-render_topnav(active='settings', user_email=user.get('email', ''))
+render_topnav(active='settings', user_email=user.get('email') or ('已登录' if user.get('user_id') else ''))
 
 def _url(item): return item.get("url", item) if isinstance(item, dict) else item
 def _name(item): return item.get("name", "") if isinstance(item, dict) else ""

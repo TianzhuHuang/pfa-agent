@@ -33,6 +33,7 @@ class AddHoldingsBulkRequest(BaseModel):
     account: str = "默认"
     new_account_name: str = ""
     new_account_currency: str = "CNY"
+    available_balance: Optional[float] = None
 
 
 class TradeConfirmRequest(BaseModel):
@@ -53,22 +54,81 @@ def _load_portfolio() -> Dict:
 
 def _get_valuation(display_currency: str = "CNY") -> Dict:
     from agents.secretary_agent import load_portfolio
-    from pfa.portfolio_valuation import calculate_portfolio_value, get_realtime_prices
+    from pfa.portfolio_valuation import calculate_portfolio_value, get_realtime_prices, get_fx_rates, get_fx_updated_at
     p = load_portfolio()
     holdings = p.get("holdings", [])
+    accounts = p.get("accounts", [])
     if not holdings:
-        return {
+        fx_raw = get_fx_rates()
+        val = {
             "total_value_cny": 0,
+            "total_cost_cny": 0,
             "total_pnl_cny": 0,
             "total_pnl_pct": 0,
             "holding_count": 0,
             "account_count": 0,
             "by_account": {},
             "target_currency": display_currency if display_currency != "original" else "CNY",
-            "fx_updated_at": None,
+            "fx_updated_at": get_fx_updated_at(),
+            "fx_rates": {k: round(v, 4) for k, v in fx_raw.items()},
         }
-    prices = get_realtime_prices(holdings)
-    return calculate_portfolio_value(holdings, prices, target_currency=display_currency)
+    else:
+        prices = get_realtime_prices(holdings)
+        val = calculate_portfolio_value(holdings, prices, target_currency=display_currency)
+
+    # Merge account balances into valuation
+    fx = val.get("fx_rates") or get_fx_rates()
+    target_cur = val.get("target_currency", "CNY")
+    is_original = (target_cur or "").strip().lower() == "original"
+
+    for acc in accounts:
+        acct_name = str(acc.get("name", acc.get("id", ""))).strip()
+        if not acct_name:
+            continue
+        balance = float(acc.get("balance", 0) or 0)
+        if balance <= 0:
+            continue
+        base_cur = str(acc.get("base_currency", acc.get("currency", "CNY"))).strip().upper() or "CNY"
+        rate_from = fx.get(base_cur) or 1.0
+        rate_to = 1.0 if (is_original or target_cur == "CNY") else (fx.get(target_cur) or 1.0)
+        if rate_to <= 0:
+            rate_to = 1.0
+        balance_cny = balance * rate_from
+        balance_target = balance_cny / rate_to if not is_original and target_cur != "CNY" else balance_cny
+
+        if acct_name not in val["by_account"]:
+            val["by_account"][acct_name] = {"value": 0, "cost": 0, "pnl": 0, "holdings": []}
+        val["by_account"][acct_name]["value"] = val["by_account"][acct_name]["value"] + balance_target
+        val["total_value_cny"] = round((val.get("total_value_cny") or 0) + balance_target, 2)
+
+        cash_row = {
+            "symbol": "CASH",
+            "name": "💰 现金余额",
+            "is_cash": True,
+            "current_price": 1.0,
+            "cost_price": 1.0,
+            "quantity": balance,
+            "value_local": balance,
+            "value_cny": round(balance_target, 2),
+            "value_display": round(balance_target, 2),
+            "currency": base_cur,
+            "account": acct_name,
+            "pnl_cny": 0,
+            "pnl_pct": 0,
+            "today_pct": 0,
+            "position_pct": 0,
+        }
+        val["by_account"][acct_name]["holdings"].append(cash_row)
+
+    # Recalculate position_pct for all holdings (including cash)
+    for acct_data in val["by_account"].values():
+        acct_val = acct_data["value"]
+        for ho in acct_data["holdings"]:
+            v = ho.get("value_cny", ho.get("value_local", 0))
+            ho["position_pct"] = round((v / acct_val * 100), 1) if acct_val > 0 else 0
+
+    val["account_count"] = len(val["by_account"])
+    return val
 
 
 @router.get("/portfolio")
@@ -223,9 +283,9 @@ def list_accounts():
         existing = sorted({str(h.get("account", "")).strip() for h in p.get("holdings", []) if h.get("account")})
         for name in (existing or ["默认"]):
             if name and name not in [a.get("name") for a in accs]:
-                accs.append({"id": name, "name": name, "base_currency": "CNY", "account_type": "股票"})
+                accs.append({"id": name, "name": name, "base_currency": "CNY", "account_type": "股票", "balance": 0})
     if not any(a.get("name") == "默认" for a in accs):
-        accs = [{"id": "默认", "name": "默认", "base_currency": "CNY", "account_type": "股票"}] + accs
+        accs = [{"id": "默认", "name": "默认", "base_currency": "CNY", "account_type": "股票", "balance": 0}] + accs
     return {"accounts": accs}
 
 
@@ -292,7 +352,10 @@ def ocr_image(req: OcrRequest):
         from pfa.screenshot_ocr import extract_holdings_from_image
         r = extract_holdings_from_image(img_bytes, mime)
         if r.get("status") == "ok" and r.get("holdings"):
-            return {"status": "ok", "holdings": r["holdings"]}
+            out = {"status": "ok", "holdings": r["holdings"]}
+            if r.get("available_balance") is not None:
+                out["available_balance"] = r["available_balance"]
+            return out
         return {"status": "error", "error": r.get("error", "识别失败")}
     except Exception as e:
         err_msg = str(e)
@@ -302,15 +365,23 @@ def ocr_image(req: OcrRequest):
         return {"status": "error", "error": err_msg}
 
 
+def _market_to_currency(market: str) -> str:
+    """由 market 推断标的原始币种。"""
+    return {"A": "CNY", "HK": "HKD", "US": "USD"}.get((market or "A")[:2], "CNY")
+
+
 @router.post("/portfolio/holdings/bulk")
 def add_holdings_bulk(req: AddHoldingsBulkRequest):
     """批量添加持仓（OCR 或文件导入后确认）。"""
-    from agents.secretary_agent import load_portfolio, save_portfolio, upsert_account, update_holdings_bulk
+    from agents.secretary_agent import load_portfolio, save_portfolio, upsert_account, update_account, update_holdings_bulk
+    from pfa.symbol_utils import normalize_hk_symbol
     from datetime import datetime
     acc = _resolve_account(req.account, req.new_account_name)
     currency = (req.new_account_currency or "CNY").strip().upper()
     if acc and acc != "默认":
-        upsert_account(acc, broker="", currency=currency, account_type="股票")
+        upsert_account(acc, broker="", currency=currency, account_type="股票", balance=req.available_balance)
+    if acc and req.available_balance is not None and req.available_balance > 0:
+        update_account(acc, balance=req.available_balance)
     p = load_portfolio()
     now = datetime.now().isoformat()
     for h in req.holdings:
@@ -318,14 +389,23 @@ def add_holdings_bulk(req: AddHoldingsBulkRequest):
         if not sym:
             continue
         e = dict(h)
-        e["symbol"] = sym
-        e.setdefault("name", "")
         e["market"] = str(e.get("market", "A"))[:2] or "A"
+        if e["market"] == "HK":
+            e["symbol"] = normalize_hk_symbol(sym)
+        else:
+            for suffix in (".HK", ".hk", ".SH", ".sh", ".SZ", ".sz"):
+                if sym.upper().endswith(suffix.upper()):
+                    sym = sym[: -len(suffix)]
+                    break
+            e["symbol"] = sym
+        e.setdefault("name", "")
         e["account"] = acc
         e["updated_at"] = now
         e.setdefault("source", "ocr")
-        if e.get("currency") not in ("CNY", "USD", "HKD"):
-            e["currency"] = currency
+        if e.get("source") == "ocr":
+            e["ocr_confirmed"] = False
+        valid_cur = (e.get("currency") or "").strip().upper() in ("CNY", "USD", "HKD")
+        e["currency"] = (e.get("currency") or "").strip().upper() if valid_cur else _market_to_currency(e["market"])
         if e.get("exchange"):
             e["exchange"] = str(e.get("exchange", "")).strip()
         for k in ("cost_price", "quantity"):
@@ -427,6 +507,7 @@ def clear_holdings():
 class HoldingUpdateBody(BaseModel):
     symbol: str
     account: str
+    new_symbol: Optional[str] = None
     quantity: Optional[float] = None
     cost_price: Optional[float] = None
     currency: Optional[str] = None
@@ -440,21 +521,23 @@ class AccountUpdateBody(BaseModel):
     base_currency: Optional[str] = None
     broker: Optional[str] = None
     account_type: Optional[str] = None
+    balance: Optional[float] = None
 
 
 @router.patch("/portfolio/holdings")
 def update_holding(body: HoldingUpdateBody):
-    """行级编辑：更新单条持仓的 quantity、cost_price、currency、exchange 等。"""
+    """行级编辑：更新单条持仓的 quantity、cost_price、currency、exchange 等。支持 new_symbol 替换标的。"""
     from agents.secretary_agent import update_holding as _update_holding
     from fastapi import HTTPException
     payload = body.model_dump(exclude_none=True)
     symbol = payload.pop("symbol", "").strip()
     account = payload.pop("account", "默认").strip() or "默认"
+    new_symbol = (payload.pop("new_symbol", "") or "").strip()
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol 必填")
-    if "currency" in payload and payload["currency"] not in ("CNY", "USD", "HKD"):
-        payload.pop("currency")
-    updated = _update_holding(symbol, account, **payload)
+    if "currency" in payload and payload.get("currency") not in ("CNY", "USD", "HKD"):
+        payload.pop("currency", None)
+    updated = _update_holding(symbol, account, new_symbol=new_symbol or None, **payload)
     if updated is None:
         raise HTTPException(status_code=404, detail="未找到该持仓")
     return {"ok": True, "holding": updated}
@@ -462,7 +545,7 @@ def update_holding(body: HoldingUpdateBody):
 
 @router.patch("/portfolio/accounts/{account_id}")
 def update_account(account_id: str, body: AccountUpdateBody):
-    """更新账户：name, base_currency, broker, account_type。若账户不在 accounts 中则创建（upsert）。"""
+    """更新账户：name, base_currency, broker, account_type, balance。若账户不在 accounts 中则创建（upsert）。"""
     from agents.secretary_agent import update_account as _update_account, upsert_account
     payload = body.model_dump(exclude_none=True)
     acc = _update_account(account_id, **payload)
@@ -472,7 +555,8 @@ def update_account(account_id: str, body: AccountUpdateBody):
         currency = (payload.get("base_currency") or "CNY").strip().upper()
         broker = (payload.get("broker") or "").strip()
         account_type = (payload.get("account_type") or "股票").strip()
-        acc = upsert_account(name, broker=broker, currency=currency, account_type=account_type)
+        balance = payload.get("balance")
+        acc = upsert_account(name, broker=broker, currency=currency, account_type=account_type, balance=balance)
     return {"ok": True, "account": acc}
 
 

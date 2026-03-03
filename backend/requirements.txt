@@ -1,0 +1,10 @@
+# PFA Backend — FastAPI（需在项目根目录运行，复用 pfa/ agents/）
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+jsonschema>=4.20.0
+feedparser>=6.0.0
+openpyxl>=3.1.0
+PyJWT>=2.8.0
+supabase>=2.0.0

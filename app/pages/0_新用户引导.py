@@ -20,7 +20,7 @@ if not user.get("user_id"):
     render_login_page()
     st.stop()
 
-render_topnav(active="guide", user_email=user.get("email", ""))
+render_topnav(active="guide", user_email=user.get("email") or ("已登录" if user.get("user_id") else ""))
 
 # 自动跳转：若 switch_page 失败，显示可点击链接
 try:
@@ -37,8 +37,8 @@ st.markdown(
   <div class="pfa-body" style="color:#9AA0A6; margin-bottom:20px;">
     引导页已合并至主页面，请点击下方按钮返回。
   </div>
-  <a href="/" style="display:inline-block; padding:12px 24px; background:#4285F4; color:#fff!important; border-radius:8px; font-size:14px; font-weight:500; text-decoration:none;">返回 Portfolio</a>
 </div>
 """,
     unsafe_allow_html=True,
 )
+st.page_link("pfa_dashboard.py", label="返回 Portfolio", icon="📊")

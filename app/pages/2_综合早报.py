@@ -21,7 +21,7 @@ user = get_user()
 if not user.get('user_id'):
     st.warning('请先登录。')
     st.stop()
-render_topnav(active='briefing', user_email=user.get('email', ''))
+render_topnav(active='briefing', user_email=user.get('email') or ('已登录' if user.get('user_id') else ''))
 
 CST = timezone(timedelta(hours=8))
 now = datetime.now(CST)

@@ -101,9 +101,14 @@ def get_user() -> dict:
 
 def render_login_page():
     """Centered dark login page."""
-    st.markdown("""
+    from app.theme_v2 import _logo_data_uri
+    logo_uri = _logo_data_uri()
+    st.markdown(f"""
 <div class="login-box">
-    <div class="logo">PFA</div>
+    <div class="logo">
+        <img src="{logo_uri}" alt="PFA" width="48" height="48"/>
+        <span>PFA</span>
+    </div>
     <div class="sub">Portfolio Intelligence · AI-Powered</div>
 </div>""", unsafe_allow_html=True)
 

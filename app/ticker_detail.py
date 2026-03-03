@@ -130,10 +130,13 @@ def _render_ask_pfa_panel(h: dict, items: list):
     if chat_key not in st.session_state:
         st.session_state[chat_key] = []
 
+    from app.theme_v2 import _logo_data_uri
     chat_box = st.container(height=320)
     with chat_box:
         for msg in st.session_state[chat_key]:
-            with st.chat_message(msg["role"]):
+            role = msg["role"]
+            avatar = _logo_data_uri() if role == "assistant" else None
+            with st.chat_message(role, avatar=avatar):
                 st.markdown(msg["content"])
 
     # 自定义输入行：避免 st.chat_input 带来的白底
@@ -195,7 +198,7 @@ def render_ticker_detail_page(holding: dict, holdings: list, user: dict):
     holding: 当前选中的持仓项；holdings: 全部持仓；user: 当前用户信息。
     """
     inject_v2_theme()
-    render_topnav(active="portfolio", user_email=user.get("email", ""))
+    render_topnav(active="portfolio", user_email=user.get("email") or ("已登录" if user.get("user_id") else ""))
 
     h = holding
     sym = h.get("symbol", "")
@@ -290,7 +293,7 @@ def _run_standalone():
     if not user.get("user_id"):
         render_login_page()
         st.stop()
-    render_topnav(active="portfolio", user_email=user.get("email", ""))
+    render_topnav(active="portfolio", user_email=user.get("email") or ("已登录" if user.get("user_id") else ""))
     portfolio = load_portfolio()
     holdings = portfolio.get("holdings", [])
     if not holdings:

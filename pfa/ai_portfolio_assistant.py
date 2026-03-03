@@ -66,6 +66,7 @@ def parse_portfolio_command(user_input: str) -> Dict[str, Any]:
                   "messages": [{"role": "user", "content": prompt}],
                   "temperature": 0.1, "max_tokens": 500},
             timeout=30,
+            proxies={"http": None, "https": None},
         )
         resp.raise_for_status()
         text = resp.json()["choices"][0]["message"]["content"].strip()

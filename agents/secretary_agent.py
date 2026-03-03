@@ -54,7 +54,7 @@ _ACCOUNT_TYPE_MIGRATION = {"券商": "股票", "冷钱包": "数字货币", "实
 
 
 def _normalize_account(acc: Dict[str, Any]) -> Dict[str, Any]:
-    """兼容旧数据：currency -> base_currency，account_type 旧值迁移"""
+    """兼容旧数据：currency -> base_currency，account_type 旧值迁移，保留 balance"""
     out = dict(acc)
     if "base_currency" not in out and "currency" in out:
         out["base_currency"] = (out.get("currency") or "CNY").strip().upper()
@@ -63,6 +63,7 @@ def _normalize_account(acc: Dict[str, Any]) -> Dict[str, Any]:
     if at in _ACCOUNT_TYPE_MIGRATION:
         out["account_type"] = _ACCOUNT_TYPE_MIGRATION[at]
     out.setdefault("account_type", "股票")
+    out["balance"] = float(acc.get("balance", 0) or 0)
     return out
 
 
@@ -78,6 +79,7 @@ def upsert_account(
     broker: str = "",
     currency: str = "CNY",
     account_type: str = "股票",
+    balance: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Create or update an account definition. 使用 name 作为人类可读主键。"""
     portfolio = load_portfolio()
@@ -93,6 +95,8 @@ def upsert_account(
             acc["broker"] = broker
             acc["base_currency"] = base_currency
             acc["account_type"] = account_type
+            if balance is not None:
+                acc["balance"] = float(balance)
             acc["updated_at"] = now
             if "currency" in acc:
                 del acc["currency"]
@@ -105,6 +109,7 @@ def upsert_account(
         "broker": broker,
         "base_currency": base_currency,
         "account_type": account_type,
+        "balance": float(balance) if balance is not None else 0,
         "created_at": now,
         "updated_at": now,
     }
@@ -128,6 +133,8 @@ def update_account(account_id: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
                 acc["broker"] = str(kwargs["broker"] or "").strip()
             if "account_type" in kwargs and kwargs["account_type"]:
                 acc["account_type"] = str(kwargs["account_type"]).strip()
+            if "balance" in kwargs:
+                acc["balance"] = float(kwargs["balance"] or 0)
             acc["updated_at"] = now
             if "currency" in acc:
                 del acc["currency"]
@@ -300,13 +307,64 @@ def update_holdings_bulk(holdings: List[Dict]) -> dict:
     return portfolio
 
 
-def update_holding(symbol: str, account: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
-    """Update a single holding by symbol+account. Returns updated holding or None."""
+def update_holding(symbol: str, account: str, new_symbol: Optional[str] = None, **kwargs: Any) -> Optional[Dict[str, Any]]:
+    """Update a single holding by symbol+account. Returns updated holding or None.
+    When new_symbol is provided and differs from symbol, replaces the holding (remove old, add new).
+    """
+    from pfa.symbol_utils import normalize_hk_symbol
     portfolio = load_portfolio()
     holdings = portfolio.get("holdings", [])
     now = datetime.now(CST).isoformat()
-    for h in holdings:
-        if str(h.get("symbol", "")).strip() == symbol.strip() and str(h.get("account", "")).strip() == account.strip():
+    acc = account.strip() or "默认"
+
+    for i, h in enumerate(holdings):
+        if str(h.get("symbol", "")).strip() != symbol.strip() or str(h.get("account", "")).strip() != acc:
+            continue
+
+        if new_symbol and new_symbol.strip() and new_symbol.strip() != symbol.strip():
+            # Replace: remove old, add new with new_symbol
+            base = dict(h)
+            base.pop("symbol", None)
+            base.pop("updated_at", None)
+            new_sym = new_symbol.strip()
+            if base.get("market") == "HK":
+                new_sym = normalize_hk_symbol(new_sym)
+            else:
+                for suffix in (".HK", ".hk", ".SH", ".sh", ".SZ", ".sz"):
+                    if new_sym.upper().endswith(suffix.upper()):
+                        new_sym = new_sym[: -len(suffix)]
+                        break
+            updated_h = {
+                "symbol": new_sym,
+                "account": acc,
+                "updated_at": now,
+                **base,
+            }
+            if base.get("source") == "ocr":
+                updated_h["ocr_confirmed"] = True
+            if kwargs.get("quantity") is not None:
+                try:
+                    updated_h["quantity"] = float(kwargs["quantity"])
+                except (ValueError, TypeError):
+                    pass
+            if kwargs.get("cost_price") is not None:
+                try:
+                    updated_h["cost_price"] = float(kwargs["cost_price"])
+                except (ValueError, TypeError):
+                    pass
+            if kwargs.get("currency") in ("CNY", "USD", "HKD"):
+                updated_h["currency"] = kwargs["currency"]
+            if kwargs.get("market"):
+                updated_h["market"] = str(kwargs["market"])[:2] or "A"
+            if "exchange" in kwargs:
+                updated_h["exchange"] = str(kwargs["exchange"]).strip() if kwargs["exchange"] else None
+            if kwargs.get("name") is not None:
+                updated_h["name"] = str(kwargs["name"]).strip()
+            holdings[i] = updated_h
+            save_portfolio(portfolio)
+            return updated_h
+        else:
+            # In-place update
             if "quantity" in kwargs and kwargs["quantity"] is not None:
                 try:
                     h["quantity"] = float(kwargs["quantity"])
@@ -331,6 +389,8 @@ def update_holding(symbol: str, account: str, **kwargs: Any) -> Optional[Dict[st
             if "name" in kwargs and kwargs["name"] is not None:
                 h["name"] = str(kwargs["name"]).strip()
             h["updated_at"] = now
+            if h.get("source") == "ocr":
+                h["ocr_confirmed"] = True
             save_portfolio(portfolio)
             return h
     return None
@@ -582,6 +642,14 @@ def remove_source(source_type: str, value: str) -> dict:
     return sources
 
 
+def set_xueqiu_user_ids(ids: list) -> dict:
+    """Replace xueqiu_user_ids with the given list (for sync follow list)."""
+    sources = load_data_sources()
+    sources["xueqiu_user_ids"] = [str(i).strip() for i in (ids or []) if str(i).strip()]
+    save_data_sources(sources)
+    return sources
+
+
 # ===================================================================
 # Pipeline Orchestration
 # ===================================================================
@@ -714,7 +782,15 @@ def run_full_pipeline_streaming(holdings: List[Dict], hours: int = 72, do_audit:
         def _run_analyst():
             try:
                 raw_items = scout_resp.payload.get("items", [])
-                items_to_analyze = raw_items[:10] if isinstance(raw_items, list) else []
+                if isinstance(raw_items, list):
+                    # 雪球大 V 内容优先排序
+                    sorted_items = sorted(
+                        raw_items,
+                        key=lambda x: (0 if (x.get("source") or "").startswith("xueqiu") else 1, -(len(x.get("content_snippet") or ""))),
+                    )
+                    items_to_analyze = sorted_items[:10]
+                else:
+                    items_to_analyze = []
                 log(f"Analyst 调用 LLM，新闻数={len(items_to_analyze)}")
                 analyst_req = make_request("secretary", "analyst", "analyze",
                                            items=items_to_analyze,

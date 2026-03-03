@@ -2,8 +2,11 @@
 
 # 敏感/本地配置（持仓、凭证不得入库）
 config/user-profile.json
+config/xueqiu-auth.json
 .env
 .env.*
+!.env.example
+!frontend/.env.example
 *.local
 
 # 本地数据（Phase 2 落库、知识库等）

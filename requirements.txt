@@ -1,4 +1,8 @@
 # PFA 依赖
+# 环境变量（.env）
+python-dotenv>=1.0.0
+# 数据库层（SQLite + SQLAlchemy）
+sqlalchemy>=2.0.0
 # Phase 1: 持仓校验
 jsonschema>=4.20.0
 # Phase 2: 数据抓取与深度分析（通义千问 via DashScope OpenAI-compatible API）
@@ -13,3 +17,5 @@ supabase>=2.0.0
 extra-streamlit-components>=0.1.60
 streamlit-local-storage>=0.0.20
 plotly>=5.0.0
+dash>=2.14.0
+openpyxl>=3.1.0

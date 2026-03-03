@@ -37,7 +37,7 @@ def validate_with_jsonschema(data: dict, schema: dict) -> Tuple[bool, List[str]]
 
 
 def _minimal_validate(data: dict, schema: dict) -> Tuple[bool, List[str]]:
-    """无 jsonschema 时的最小校验：仅校验 holdings 中每项必填字段与 source 枚举。"""
+    """无 jsonschema 时的最小校验：holdings 必填字段与 source 枚举；accounts 符合新 schema。"""
     errs = []
     if "version" not in data:
         errs.append("缺少顶层字段: version")
@@ -45,7 +45,7 @@ def _minimal_validate(data: dict, schema: dict) -> Tuple[bool, List[str]]:
         if not isinstance(data["holdings"], list):
             errs.append("holdings 必须为数组")
         else:
-            allowed_sources = {"ocr", "manual", "browser", "excel"}
+            allowed_sources = {"ocr", "manual", "browser", "excel", "csv", "search"}
             for i, item in enumerate(data["holdings"]):
                 if not isinstance(item, dict):
                     errs.append(f"holdings[{i}] 必须为对象")
@@ -57,6 +57,26 @@ def _minimal_validate(data: dict, schema: dict) -> Tuple[bool, List[str]]:
                     errs.append(f"holdings[{i}].source 必须为: {list(allowed_sources)}")
                 if item.get("market") and item["market"] not in ("A", "US", "HK", "OTHER"):
                     errs.append(f"holdings[{i}].market 必须为: A | US | HK | OTHER")
+    if "accounts" in data:
+        if not isinstance(data["accounts"], list):
+            errs.append("accounts 必须为数组")
+        else:
+            allowed_currencies = {"CNY", "USD", "HKD"}
+            allowed_types = {"股票", "债券", "数字货币", "其他"}
+            for i, acc in enumerate(data["accounts"]):
+                if not isinstance(acc, dict):
+                    errs.append(f"accounts[{i}] 必须为对象")
+                    continue
+                if "name" not in acc or not acc.get("name"):
+                    errs.append(f"accounts[{i}] 缺少必填字段: name")
+                if "base_currency" not in acc and "currency" not in acc:
+                    errs.append(f"accounts[{i}] 缺少必填字段: base_currency 或 currency")
+                bc = acc.get("base_currency") or acc.get("currency")
+                if bc and bc not in allowed_currencies:
+                    errs.append(f"accounts[{i}].base_currency 必须为: CNY | USD | HKD")
+                at = acc.get("account_type")
+                if at and at not in allowed_types:
+                    errs.append(f"accounts[{i}].account_type 必须为: 股票 | 债券 | 数字货币 | 其他")
     return len(errs) == 0, errs
 
 

@@ -34,28 +34,30 @@ LAYOUT_BASE = dict(
 )
 
 
-def render_allocation_pie(holdings_data: List[Dict], total_value: float):
-    """仓位占比饼图 (Position Sizing)."""
+def render_allocation_pie(holdings_data: List[Dict], total_value: float, ccy_symbol: str = "¥", ccy_factor: float = 1.0):
+    """仓位占比饼图 (Position Sizing). ccy_factor: CNY→目标币种换算系数."""
     labels = []
     values = []
     colors = []
 
     for h in sorted(holdings_data, key=lambda x: x.get("value_cny", 0), reverse=True):
         name = h.get("name", h.get("symbol", "?"))
-        val = h.get("value_cny", 0)
+        val = h.get("value_cny", 0) * ccy_factor
         if val <= 0:
             continue
-        pct = val / total_value * 100 if total_value > 0 else 0
+        total_display = total_value * ccy_factor
+        pct = val / total_display * 100 if total_display > 0 else 0
         labels.append(f"{name} {pct:.1f}%")
         values.append(val)
 
+    total_display = total_value * ccy_factor
     fig = go.Figure(data=[go.Pie(
         labels=labels, values=values,
         hole=0.55,
         marker=dict(colors=CHART_COLORS["palette"][:len(labels)],
                     line=dict(color="#0F1116", width=2)),
         textinfo="none",
-        hovertemplate="%{label}<br>¥%{value:,.0f}<extra></extra>",
+        hovertemplate=f"%{{label}}<br>{ccy_symbol}%{{value:,.0f}}<extra></extra>",
     )])
 
     layout = {k: v for k, v in LAYOUT_BASE.items() if k != "height"}
@@ -70,7 +72,7 @@ def render_allocation_pie(holdings_data: List[Dict], total_value: float):
         ),
         height=260,
         annotations=[dict(
-            text=f"<b>¥{total_value/10000:,.0f}万</b>",
+            text=f"<b>{ccy_symbol}{total_display/10000:,.0f}万</b>",
             x=0.5, y=0.5, font_size=16, font_color="#E8EAED",
             showarrow=False,
         )],
@@ -106,8 +108,8 @@ def render_market_distribution(by_market: Dict):
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
-def render_pnl_waterfall(holdings_data: List[Dict]):
-    """今日盈亏贡献瀑布图."""
+def render_pnl_waterfall(holdings_data: List[Dict], ccy_symbol: str = "¥", ccy_factor: float = 1.0):
+    """今日盈亏贡献瀑布图. ccy_factor: CNY→目标币种换算系数."""
     sorted_h = sorted(holdings_data, key=lambda x: x.get("today_pnl", 0), reverse=True)
 
     names = []
@@ -115,7 +117,7 @@ def render_pnl_waterfall(holdings_data: List[Dict]):
     colors = []
 
     for h in sorted_h:
-        today_pnl = h.get("today_pnl", 0)
+        today_pnl = h.get("today_pnl", 0) * ccy_factor
         if today_pnl == 0:
             continue
         name = h.get("name", h.get("symbol", "?"))
@@ -129,7 +131,7 @@ def render_pnl_waterfall(holdings_data: List[Dict]):
     fig = go.Figure(data=[go.Bar(
         x=names, y=pnls,
         marker=dict(color=colors),
-        text=[f"{'+'if p>=0 else ''}{p:,.0f}" for p in pnls],
+        text=[f"{'+' if p>=0 else '-'}{ccy_symbol}{abs(p):,.0f}" for p in pnls],
         textposition="outside",
         textfont=dict(size=11, color=CHART_COLORS["text"]),
     )])

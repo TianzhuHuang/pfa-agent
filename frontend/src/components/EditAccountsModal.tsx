@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch, API_BASE } from "@/lib/api";
 
-const CURRENCIES = ["CNY", "USD", "HKD"];
 const ACCOUNT_TYPES = ["股票", "债券", "数字货币", "其他"];
+
+const CURRENCY_SYMBOLS: Record<string, string> = { CNY: "¥", USD: "$", HKD: "HK$" };
 
 interface Account {
   id: string;
@@ -12,6 +13,7 @@ interface Account {
   base_currency: string;
   broker?: string;
   account_type?: string;
+  balance?: number;
 }
 
 interface EditAccountsModalProps {
@@ -41,6 +43,7 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
           base_currency: String(a.base_currency ?? a.currency ?? "CNY"),
           broker: String(a.broker ?? ""),
           account_type: String(a.account_type ?? "股票"),
+          balance: Number(a.balance ?? 0),
         }))
       );
     } catch {
@@ -55,7 +58,7 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
     if (open) loadAccounts();
   }, [open, loadAccounts]);
 
-  const updateLocal = (id: string, field: keyof Account, value: string) => {
+  const updateLocal = (id: string, field: keyof Account, value: string | number) => {
     setAccounts((prev) =>
       prev.map((a) => (a.id === id ? { ...a, [field]: value } : a))
     );
@@ -75,9 +78,9 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: acc.name,
-          base_currency: acc.base_currency,
           broker: acc.broker ?? "",
           account_type: acc.account_type ?? "股票",
+          balance: acc.balance ?? 0,
         }),
       });
       const data = await r.json().catch(() => ({}));
@@ -138,7 +141,7 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
           </button>
         </div>
         <p className="mb-4 text-sm text-[#888888]">
-          修改账户名称、结算币种、账户类型。修改后该账户下所有持仓自动关联新的结算逻辑。
+          修改账户名称、账户类型。展示币种请在首页 Total Wealth 处切换。
         </p>
         {error && (
           <div className="mb-4 rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400">
@@ -156,7 +159,7 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
                 key={acc.id}
                 className="rounded-lg border border-white/10 bg-[#1a1a1a] p-4"
               >
-                <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs text-[#888888]">账户名称</label>
                     <input
@@ -164,20 +167,6 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
                       onChange={(e) => updateLocal(acc.id, "name", e.target.value)}
                       className="w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
                     />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-[#888888]">结算币种</label>
-                    <select
-                      value={acc.base_currency}
-                      onChange={(e) => updateLocal(acc.id, "base_currency", e.target.value)}
-                      className="w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                    >
-                      {CURRENCIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-[#888888]">账户类型</label>
@@ -201,6 +190,22 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
                       placeholder="可选"
                       className="w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-[#666]"
                     />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-[#888888]">可用余额</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={acc.balance ?? 0}
+                        onChange={(e) => updateLocal(acc.id, "balance", parseFloat(e.target.value) || 0)}
+                        className="w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                      />
+                      <span className="shrink-0 text-sm text-[#888888]">
+                        {CURRENCY_SYMBOLS[acc.base_currency] ?? acc.base_currency}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

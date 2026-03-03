@@ -34,10 +34,35 @@
         "risk_tolerance": { "type": "string", "enum": ["low", "medium", "high"], "description": "风险容忍度" },
         "constraints": { "type": "string", "description": "约束说明，如：不用杠杆、只做 A 股" }
       }
+    },
+    "accounts": {
+      "type": "array",
+      "description": "账户元数据：名称、结算币种、类型",
+      "items": { "$ref": "#/$defs/Account" }
     }
   },
   "required": ["version"],
   "$defs": {
+    "Account": {
+      "type": "object",
+      "description": "账户定义",
+      "properties": {
+        "id": { "type": "string", "description": "账户 ID" },
+        "name": { "type": "string", "description": "账户名称" },
+        "base_currency": { "type": "string", "enum": ["CNY", "USD", "HKD"], "description": "结算币种（推荐）" },
+        "currency": { "type": "string", "enum": ["CNY", "USD", "HKD"], "description": "结算币种（兼容旧数据，等同于 base_currency）" },
+        "broker": { "type": "string", "description": "券商/托管方" },
+        "account_type": { "type": "string", "enum": ["股票", "债券", "数字货币", "其他"], "description": "账户类型" },
+        "balance": { "type": "number", "minimum": 0, "description": "可用余额（结算币种）" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"],
+      "anyOf": [
+        { "required": ["base_currency"] },
+        { "required": ["currency"] }
+      ]
+    },
     "Position": {
       "type": "object",
       "description": "单条持仓记录",
@@ -71,10 +96,27 @@
           "enum": ["A", "US", "HK", "OTHER"],
           "description": "所属市场：A=A股, US=美股, HK=港股, OTHER=其他"
         },
+        "currency": {
+          "type": "string",
+          "enum": ["CNY", "USD", "HKD"],
+          "description": "标的原始币种（覆盖 market 推断，用于 OCR 纠偏）"
+        },
+        "exchange": {
+          "type": "string",
+          "description": "交易所代码，如 NYSE、HKEX、SGX、SSE、SZSE（T14 等多地上市时用于区分）"
+        },
         "source": {
           "type": "string",
           "enum": ["ocr", "manual", "browser", "excel", "csv", "search"],
           "description": "录入来源：ocr=截图识别, manual=手动输入, browser=Agent 浏览器读取, excel=Excel 导入, csv=CSV 导入, search=搜索添加"
+        },
+        "ocr_confirmed": {
+          "type": "boolean",
+          "description": "OCR 导入后是否已人工确认（source=ocr 时默认 false，编辑保存后置 true）"
+        },
+        "price_deviation_warn": {
+          "type": "boolean",
+          "description": "OCR 识别价格与实时价偏差 >5% 时标记，供前端展示黄色提示"
         },
         "account": {
           "type": "string",
@@ -84,6 +126,10 @@
           "type": "string",
           "format": "date-time",
           "description": "该条记录最后更新时间（ISO 8601）"
+        },
+        "current_price": {
+          "type": "number",
+          "description": "现价（运行时计算，可选存储）"
         },
         "memo_history": {
           "type": "array",

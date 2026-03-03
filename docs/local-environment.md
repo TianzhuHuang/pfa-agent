@@ -48,6 +48,8 @@ python3 scripts/init_pfa_env.py
 
 ## 正确启动控制中心
 
+### Streamlit（原有）
+
 务必在**项目根目录**启动 Streamlit，这样 `app/pfa_dashboard.py` 里插入的 `ROOT` 和 `sys.path` 才会正确：
 
 ```bash
@@ -55,9 +57,32 @@ cd /path/to/PFA
 streamlit run app/pfa_dashboard.py --server.port 8501
 ```
 
-浏览器打开：http://localhost:8501  
+浏览器打开：http://localhost:8501
+
+### Dash（新 UI）
+
+Dash 版本提供传统 AI Chat 风格对话页，运行：
+
+```bash
+cd /path/to/PFA
+python3 app_dash/app.py
+```
+
+浏览器打开：http://127.0.0.1:8050  
 
 若需「执行分析」中的深度分析与 Auditor 审核，请设置环境变量：`DASHSCOPE_API_KEY`（必选）、`OPENAI_API_KEY`（可选，用于 Auditor 首选模型）。参见 `AGENTS.md` 中 Environment variables 小节。
+
+### Next.js 前端 + FastAPI 后端
+
+```bash
+cd /path/to/PFA
+uvicorn backend.main:app --reload --port 8000   # 后端
+cd frontend && npm run dev                        # 前端
+```
+
+浏览器打开：http://localhost:3000
+
+**晨报卡住时**：Next.js rewrites 代理有约 30 秒超时。在 `frontend/.env.local` 中设置 `NEXT_PUBLIC_API_URL=http://localhost:8000` 可直连后端，绕过代理超时。
 
 ## 多 Agent 架构与入口说明
 

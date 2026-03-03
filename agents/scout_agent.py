@@ -249,6 +249,79 @@ def _fetch_rss(url: str, feed_name: str, holdings: List[Dict]) -> List[FeedItem]
 
 
 # ---------------------------------------------------------------------------
+# Xueqiu user timeline fetcher
+# ---------------------------------------------------------------------------
+
+def _fetch_xueqiu_user_timeline(uid: str, hours: int, holdings: List[Dict]) -> List[FeedItem]:
+    """Fetch Xueqiu user posts, convert to FeedItem, filter by time and optionally by content quality."""
+    try:
+        from backend.services.social_service import fetch_xueqiu_user_timeline as _fetch
+        statuses = _fetch(uid, count=20)
+    except Exception:
+        return []
+
+    now_iso = datetime.now(CST).isoformat()
+    cutoff = datetime.now(CST) - timedelta(hours=hours)
+    items: List[FeedItem] = []
+    for s in statuses:
+        text = (s.get("description") or s.get("text") or "").strip()
+        text_clean = re.sub(r"<[^>]+>", "", text)
+        title = (s.get("title") or text_clean[:60] or "").strip()
+        user = s.get("user") or {}
+        screen_name = user.get("screen_name", "")
+        target = s.get("target", "")
+        url = f"https://xueqiu.com{target}" if target else ""
+        created_at = s.get("created_at")
+        pub_str = ""
+        if created_at is not None:
+            try:
+                if isinstance(created_at, (int, float)):
+                    ts = int(created_at) / 1000 if created_at > 1e12 else int(created_at)
+                    pub_str = datetime.fromtimestamp(ts, tz=CST).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    pub_str = str(created_at)
+            except (ValueError, OSError):
+                pub_str = str(created_at)
+        if pub_str:
+            try:
+                dt = datetime.strptime(pub_str[:19].replace("T", " "), "%Y-%m-%d %H:%M:%S").replace(tzinfo=CST)
+                if dt < cutoff:
+                    continue
+            except ValueError:
+                pass
+        # Filter: keep substantial content (>300 chars or 研报/深度)
+        if len(text_clean) < 300 and "研报" not in text_clean and "深度" not in text_clean:
+            continue
+        fid = hashlib.md5((url or title or text_clean[:50]).encode()).hexdigest()[:12]
+        search_text = f"{title} {text_clean}".lower()
+        matched_sym, matched_name, matched_mkt = "", "", ""
+        for h in holdings:
+            name = h.get("name", "")
+            for kw in _get_keywords(h["symbol"], name):
+                if kw.lower() in search_text:
+                    matched_sym = h["symbol"]
+                    matched_name = name
+                    matched_mkt = h.get("market", "")
+                    break
+            if matched_sym:
+                break
+        items.append(FeedItem(
+            id=fid,
+            title=title or text_clean[:60],
+            url=url,
+            published_at=pub_str,
+            content_snippet=text_clean[:300],
+            source="xueqiu_user",
+            source_id=screen_name or uid,
+            symbol=matched_sym,
+            symbol_name=matched_name,
+            market=matched_mkt,
+            fetched_at=now_iso,
+        ))
+    return items
+
+
+# ---------------------------------------------------------------------------
 # Multi-source fetch orchestration
 # ---------------------------------------------------------------------------
 
@@ -309,6 +382,21 @@ def fetch_news_for_all(
                 rss_items = _fetch_rss(rsshub_url, unavail.get("name", route), holdings)
                 all_items.extend(rss_items)
                 time.sleep(0.3)
+
+    # 5) Xueqiu user timelines (requires Cookie from extension sync)
+    try:
+        from backend.services.social_service import has_xueqiu_auth
+        xueqiu_ids = ds.get("xueqiu_user_ids", []) or []
+        if has_xueqiu_auth() and xueqiu_ids:
+            for uid in xueqiu_ids:
+                uid_str = str(uid).strip()
+                if not uid_str:
+                    continue
+                xq_items = _fetch_xueqiu_user_timeline(uid_str, hours, holdings)
+                all_items.extend(xq_items)
+                time.sleep(0.5)
+    except Exception:
+        pass
 
     all_items = _dedup(all_items)
     if all_items:

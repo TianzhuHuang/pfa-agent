@@ -1,13 +1,38 @@
 {
   "manifest_version": 3,
   "name": "PFA 雪球助手",
-  "version": "1.0",
+  "version": "1.1",
   "description": "PFA 投研助手 — 自动抓取雪球用户动态和个股讨论",
   "permissions": ["cookies", "storage", "alarms"],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3000/*",
+      "http://localhost:8000/*",
+      "http://127.0.0.1:3000/*",
+      "http://127.0.0.1:8000/*"
+    ]
+  },
   "host_permissions": [
     "https://xueqiu.com/*",
     "https://stock.xueqiu.com/*",
-    "http://localhost:8501/*"
+    "*://*.xueqiu.com/*",
+    "http://localhost:8501/*",
+    "http://localhost:8000/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:8000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "http://localhost:8000/*",
+        "http://127.0.0.1:3000/*",
+        "http://127.0.0.1:8000/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
   ],
   "background": {
     "service_worker": "background.js"

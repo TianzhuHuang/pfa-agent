@@ -6,31 +6,43 @@
 
 PFA (Personal Finance Agent) is an AI-powered investment research assistant for fund managers and stock traders. Multi-agent architecture (Scout/Analyst/Auditor/Secretary) with 7+ data sources, Telegram push, and real-time portfolio valuation.
 
-**Current phase**: Phase 3 complete, Phase 4 (Supabase multi-user) in design.
+**Current phase**: Dash UI migration complete; Phase 4 (Supabase multi-user) in design.
 
 ### Running the project
 
 - **Python 3.12+** required. Install: `pip install -r requirements.txt`
 - **本地与云端差异**：云端 Cursor 在固定根目录、依赖齐全的环境下跑；本地 checkout 后若未装依赖、未建 `data/`/`config` 或未在根目录启动，容易出现 ImportError 或找不到配置。建议在项目根目录执行一次：`python3 scripts/init_pfa_env.py`，再运行下面命令。详见 `docs/local-environment.md`。
-- **Streamlit UI**: `streamlit run app/pfa_dashboard.py --server.port 8501`
+- **PFA v2（Next.js + FastAPI）**: 分支 `pfa-v2-dev`。后端 `uvicorn backend.main:app --port 8000`，前端 `cd frontend && npm run dev` → http://localhost:3000。详见 `docs/pfa-v2-quickstart.md`。
+- **Dash UI（推荐）**: `python3 app_dash/app.py` → http://127.0.0.1:8050 — 传统 AI Chat 风格对话页、持仓大盘、综合早报、分析中心、数据源配置
+- **Streamlit UI（旧版）**: `streamlit run app/pfa_dashboard.py --server.port 8501`
 - **Scheduler (auto briefing + alerts)**: `python -m pfa.scheduler --run-now`
 - **Alert scan only**: `python -c "from pfa.alert_engine import run_alert_scan; run_alert_scan()"`
 - Portfolio validation: `python3 scripts/validate_portfolio.py config/my-portfolio.json`
 - News fetching: `python3 scripts/fetch_holding_news.py` (East Money API)
 - RSS fetching: `python3 scripts/fetch_rss.py` (from `channels.rss_urls` in portfolio)
 - Deep analysis: `python3 scripts/fetch_holding_news.py --analyze` (requires `DASHSCOPE_API_KEY`)
-- **Control Center** (Streamlit): 持仓管理 / 综合早报 / 分析中心 / 个股深度 / 数据源配置
+- **Control Center** (Dash): 持仓大盘 / 综合早报 / 分析中心 / 数据源配置；Streamlit 版本仍可用
 - Data stored in `data/store/` (unified layer) and `data/raw/` (legacy).
 
-### Pages (5)
+### Pages (Dash)
 
 | Page | URL path | Description |
 |---|---|---|
-| 持仓大盘 | `/持仓管理` | Global Net Worth + multi-account + Ask PFA AI chat + memo timeline |
-| 综合早报 | `/综合早报` | ClawFeed-style: sentiment score + must-reads + portfolio moves |
-| 分析中心 | `/分析中心` | Scout→Analyst→Auditor console + history archive (visual render) |
-| 个股深度 | `/个股深度` | 3-column: fundamentals+P&L / news feed / Ask Agent chat |
-| 数据源配置 | `/数据源配置` | RSS/API sources + health check test buttons |
+| 持仓大盘 | `/` | Holdings table + allocation chart + Ask PFA AI chat (streaming) + entry modal |
+| 综合早报 | `/briefing` | Generate briefing, sentiment + must-reads |
+| 分析中心 | `/analysis` | Scout/Analyst/Auditor console + chat |
+| 数据源配置 | `/settings` | RSS add/remove, data sources |
+
+### Key files (Dash UI)
+
+| File | Purpose |
+|---|---|
+| `app_dash/app.py` | Dash app entry |
+| `app_dash/layout.py` | Root layout, routing |
+| `app_dash/components/chat.py` | AI Chat (streaming) |
+| `app_dash/components/entry_modal.py` | Add holdings modal |
+| `app_dash/pages/portfolio.py` | Holdings + chat |
+| `pfa/ai_chat.py` | AI logic (shared, no Streamlit) |
 
 ### Key modules
 
@@ -49,6 +61,8 @@ PFA (Personal Finance Agent) is an AI-powered investment research assistant for 
 | `pfa/ai_portfolio_assistant.py` | Natural language portfolio CRUD (Qwen) |
 | `pfa/portfolio_valuation.py` | FX rates + real-time valuation + P&L calculation |
 | `pfa/data/store.py` | Unified data layer (user_id param for multi-tenant) |
+| `backend/database/` | SQLite + SQLAlchemy（对话持久化，替代 JSON） |
+| `backend/services/chat_store.py` | 对话存储（DB 优先，JSON 回退） |
 | `app/theme.py` | Dark/light theme system + card components |
 | `chrome-extension/` | Xueqiu WAF bypass Chrome extension |
 

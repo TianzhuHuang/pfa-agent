@@ -1,7 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none" aria-hidden="true">
-  <!-- 图标 -->
-  <path d="M6 24 L10 20 L14 16 L18 12 L22 8 L26 6" stroke="#4285F4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="26" cy="6" r="2" fill="#4285F4"/>
+  <!-- 乌龟图标（缩放至 28x28） -->
+  <g transform="translate(2,2) scale(0.52)">
+    <path d="M10 26 C10 14 24 8 38 26 L38 30 L10 30 Z" stroke="#4285F4" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M24 12 L30 16 L30 24 L24 28 L18 24 L18 16 Z" stroke="#4285F4" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M14 18 L18 20 L18 26 L14 28 L10 26 L10 20 Z" stroke="#4285F4" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M34 18 L38 20 L38 26 L34 28 L30 26 L30 20 Z" stroke="#4285F4" stroke-width="0.8" stroke-linejoin="round"/>
+    <ellipse cx="6" cy="26" rx="4" ry="3" stroke="#4285F4" stroke-width="1.4"/>
+    <circle cx="5" cy="25" r="0.8" fill="#4285F4"/>
+    <path d="M3 27 Q5 28 7 27" stroke="#4285F4" stroke-width="0.7" stroke-linecap="round"/>
+    <path d="M10 30 L38 30" stroke="#4285F4" stroke-width="1.2"/>
+    <path d="M16 30 L16 35 Q16 37 18 37 L20 35" stroke="#4285F4" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M32 30 L32 35 Q32 37 34 37 L36 35" stroke="#4285F4" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M38 28 L41 29" stroke="#4285F4" stroke-width="1" stroke-linecap="round"/>
+  </g>
   <!-- 字标 PFA -->
-  <text x="36" y="22" font-family="Inter, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700" fill="#E8EAED" letter-spacing="-0.02em">PFA</text>
+  <text x="38" y="22" font-family="Inter, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700" fill="#E8EAED" letter-spacing="-0.02em">PFA</text>
 </svg>

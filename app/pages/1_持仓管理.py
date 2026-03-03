@@ -51,11 +51,11 @@ if holdings:
         sign = "+" if total_pnl >= 0 else ""
 
         mc = st.columns(4)
-        mc[0].markdown(f'<div class="pfa-card"><div style="font-size:11px;color:{sub_c};">总资产 CNY</div><div style="font-size:26px;font-weight:800;">¥{total_v:,.0f}</div></div>', unsafe_allow_html=True)
-        mc[1].markdown(f'<div class="pfa-card" style="border-left:4px solid {pnl_color};"><div style="font-size:11px;color:{sub_c};">总盈亏</div><div style="font-size:22px;font-weight:700;color:{pnl_color};">{sign}¥{total_pnl:,.0f}</div><div style="font-size:13px;color:{pnl_color};">{sign}{total_pct:.2f}%</div></div>', unsafe_allow_html=True)
-        mc[2].markdown(f'<div class="pfa-card"><div style="font-size:11px;color:{sub_c};">标的 / 账户</div><div style="font-size:22px;font-weight:700;">{val["holding_count"]} / {val["account_count"]}</div></div>', unsafe_allow_html=True)
+        mc[0].markdown(f'<div class="pfa-card"><div class="pfa-caption" style="color:{sub_c};">总资产 CNY</div><div class="pfa-display" style="font-size:26px;">¥{total_v:,.0f}</div></div>', unsafe_allow_html=True)
+        mc[1].markdown(f'<div class="pfa-card" style="border-left:4px solid {pnl_color};"><div class="pfa-caption" style="color:{sub_c};">总盈亏</div><div style="font-size:22px;font-weight:700;color:{pnl_color};">{sign}¥{total_pnl:,.0f}</div><div style="font-size:14px;color:{pnl_color};">{sign}{total_pct:.2f}%</div></div>', unsafe_allow_html=True)
+        mc[2].markdown(f'<div class="pfa-card"><div class="pfa-caption" style="color:{sub_c};">标的 / 账户</div><div style="font-size:22px;font-weight:700;">{val["holding_count"]} / {val["account_count"]}</div></div>', unsafe_allow_html=True)
         mkt_t = " · ".join(f"{k}:{v['count']}" for k, v in val["by_market"].items())
-        mc[3].markdown(f'<div class="pfa-card"><div style="font-size:11px;color:{sub_c};">市场分布</div><div style="font-size:15px;font-weight:600;">{mkt_t}</div></div>', unsafe_allow_html=True)
+        mc[3].markdown(f'<div class="pfa-card"><div class="pfa-caption" style="color:{sub_c};">市场分布</div><div style="font-size:15px;font-weight:600;">{mkt_t}</div></div>', unsafe_allow_html=True)
     except Exception as e:
         val = None
         st.warning(f"行情暂不可用: {e}")
@@ -265,10 +265,13 @@ with col_right:
             {"role": "assistant", "content": "你好！我是 PFA 记账助理。\n\n你可以对我说：\n- 「加仓 500 股中海油 价格 21.5」\n- 「腾讯控股数量改为 300」\n- 「删除上海机场」\n- 「记录：看好茅台渠道改革长期逻辑」"}
         ]
 
+    from app.theme_v2 import _logo_data_uri
     chat_container = st.container(height=360)
     with chat_container:
         for msg in st.session_state["portfolio_chat"]:
-            with st.chat_message(msg["role"]):
+            role = msg["role"]
+            avatar = _logo_data_uri() if role == "assistant" else None
+            with st.chat_message(role, avatar=avatar):
                 st.markdown(msg["content"])
 
     # 输入行：文本框 + 发送按钮，替代 st.chat_input，彻底避免白底

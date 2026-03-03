@@ -57,16 +57,62 @@ async function fetchXueqiuStockPosts(symbol, count = 10) {
   }
 }
 
+async function fetchXueqiuFollowList() {
+  try {
+    let myUid = "";
+
+    // 1) 尝试从 HTML 页面提取 user_id（多种格式兼容雪球改版）
+    const pageResp = await fetch("https://xueqiu.com/", { credentials: "include" });
+    const html = await pageResp.text();
+    const patterns = [
+      /"user_id"\s*:\s*"?(\d+)"?/,
+      /"uid"\s*:\s*"?(\d+)"?/,
+      /SNB\.user_id\s*=\s*["']?(\d+)["']?/,
+      /SNB\.userId\s*=\s*["']?(\d+)["']?/,
+      /"id"\s*:\s*"?(\d+)"?[^}]*"screen_name"/,
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m && m[1]) {
+        myUid = m[1];
+        break;
+      }
+    }
+
+    // 2) 若 HTML 未解析到，尝试从 Cookie 的 u 参数获取（雪球登录后会将 u=用户ID 写入 cookie）
+    if (!myUid) {
+      const cookies = await chrome.cookies.getAll({ domain: ".xueqiu.com" });
+      const uCookie = cookies.find((c) => c.name === "u" && c.value && /^\d+$/.test(c.value));
+      if (uCookie) myUid = uCookie.value;
+    }
+
+    if (!myUid) {
+      return { ok: false, ids: [], error: "无法获取当前用户ID，请确保已登录雪球并刷新页面" };
+    }
+    const resp = await fetch(
+      `https://xueqiu.com/friendships/groups/members.json?uid=${myUid}&page=1&gid=0`,
+      { credentials: "include" }
+    );
+    const data = await resp.json();
+    const users = data.users || data.list || [];
+    const ids = (users).map((u) => String(u.id || u.user_id || "")).filter(Boolean);
+    return { ok: true, ids };
+  } catch (e) {
+    console.error("[PFA] fetchXueqiuFollowList error:", e);
+    return { ok: false, ids: [], error: e.message };
+  }
+}
+
 async function fetchXueqiuPage(url) {
   try {
     const resp = await fetch(url, { credentials: "include" });
     const html = await resp.text();
-    // Extract text content by stripping HTML
-    const div = new DOMParser().parseFromString(html, "text/html");
-    const text = div.body?.innerText || "";
+    // Service Worker 中无 DOMParser，用正则提取文本
+    const text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
     return {
       url,
-      title: div.title || "",
+      title: titleMatch ? titleMatch[1].trim() : "",
       content: text.substring(0, 2000),
       source: "xueqiu_page",
     };
@@ -98,14 +144,40 @@ async function pushToPFA(data) {
 // 主抓取逻辑
 // ===================================================================
 
+async function loadConfigFromPFA() {
+  try {
+    const resp = await fetch("http://localhost:8000/api/settings/data-sources", { method: "GET" });
+    if (resp.ok) {
+      const data = await resp.json();
+      return {
+        userIds: data.xueqiu_user_ids || [],
+        monitorUrls: data.monitor_urls || [],
+      };
+    }
+  } catch (e) {
+    console.warn("[PFA] Could not load config from API:", e.message);
+  }
+  return null;
+}
+
 async function runFetchAll() {
   console.log("[PFA] Starting fetch cycle...");
 
-  // Load config from storage
-  const config = await chrome.storage.local.get(["userIds", "symbols", "monitorUrls"]);
-  const userIds = config.userIds || [];
-  const symbols = config.symbols || [];
-  const monitorUrls = config.monitorUrls || [];
+  let userIds = [];
+  let symbols = [];
+  let monitorUrls = [];
+  const pfaConfig = await loadConfigFromPFA();
+  if (pfaConfig) {
+    userIds = pfaConfig.userIds;
+    monitorUrls = pfaConfig.monitorUrls;
+    const storage = await chrome.storage.local.get(["symbols"]);
+    symbols = storage.symbols || [];
+  } else {
+    const config = await chrome.storage.local.get(["userIds", "symbols", "monitorUrls"]);
+    userIds = config.userIds || [];
+    symbols = config.symbols || [];
+    monitorUrls = config.monitorUrls || [];
+  }
 
   const allResults = { timestamp: new Date().toISOString(), items: [] };
 
@@ -181,6 +253,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((data) => {
         sendResponse(data);
       });
+    return true;
+  }
+  if (msg.action === "getXueqiuCookies") {
+    chrome.cookies.getAll({ domain: ".xueqiu.com" }).then((cookies) => {
+      sendResponse(cookies);
+    });
+    return true;
+  }
+  if (msg.action === "fetchXueqiuFollowList") {
+    fetchXueqiuFollowList().then((result) => {
+      sendResponse(result);
+    });
     return true;
   }
 });
