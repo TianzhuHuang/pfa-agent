@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, Suspense } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
@@ -13,6 +13,12 @@ function isLocalhost(): boolean {
   return h === "localhost" || h === "127.0.0.1";
 }
 
+function enterLocalMode(router: ReturnType<typeof useRouter>, redirect: string) {
+  document.cookie = "pfa_local_mode=1; path=/; max-age=86400; SameSite=Lax";
+  router.push(redirect);
+  router.refresh();
+}
+
 function LoginForm() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -20,15 +26,10 @@ function LoginForm() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [showLocalMode, setShowLocalMode] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
-
-  useEffect(() => {
-    setShowLocalMode(isLocalhost());
-  }, []);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,14 +147,6 @@ function LoginForm() {
     }
   };
 
-  const handleLocalMode = () => {
-    if (typeof document !== "undefined") {
-      document.cookie = "pfa_local_mode=1; path=/; max-age=86400";
-    }
-    router.push(redirect);
-    router.refresh();
-  };
-
   const inputBase =
     "flex-1 min-w-0 border-0 bg-transparent px-2 py-3 text-sm text-white placeholder:text-[#555] outline-none ring-0 focus:ring-0 disabled:opacity-50";
   const MailIcon = () => (
@@ -188,40 +181,26 @@ function LoginForm() {
       </div>
 
       <div className="relative z-10 w-full max-w-[400px]">
-        {/* Logo（本地环境可点击跳过登录，上线时删除） */}
+        {/* Logo（小乌龟）：localhost + Supabase 已配置时，点击进入本地模式） */}
         <div className="mb-8 flex justify-center">
-          {showLocalMode ? (
-            <button
-              type="button"
-              onClick={handleLocalMode}
-              className="relative h-20 w-20 overflow-hidden rounded-full cursor-pointer outline-none focus:ring-2 focus:ring-[#22C55E]/50 focus:ring-offset-2 focus:ring-offset-transparent"
-              style={{ animation: loading ? "pfa-logo-spin 2s linear infinite" : "pfa-breathe 3s ease-in-out infinite" }}
-              title="本地模式：跳过登录"
-            >
-              <Image
-                src="/logo.png"
-                alt="PFA（点击跳过登录）"
-                width={80}
-                height={80}
-                className="object-contain invert"
-                priority
-              />
-            </button>
-          ) : (
-            <div
-              className="relative h-20 w-20 overflow-hidden rounded-full"
-              style={{ animation: loading ? "pfa-logo-spin 2s linear infinite" : "pfa-breathe 3s ease-in-out infinite" }}
-            >
-              <Image
-                src="/logo.png"
-                alt="PFA"
-                width={80}
-                height={80}
-                className="object-contain invert"
-                priority
-              />
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => hasSupabaseConfig() && isLocalhost() && !loading && enterLocalMode(router, redirect)}
+            className={`relative h-20 w-20 overflow-hidden rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#22C55E]/50 ${
+              hasSupabaseConfig() && isLocalhost() ? "hover:opacity-90" : "cursor-default"
+            }`}
+            style={{ animation: loading ? "pfa-logo-spin 2s linear infinite" : "pfa-breathe 3s ease-in-out infinite" }}
+            title={hasSupabaseConfig() && isLocalhost() ? "点击进入本地模式" : undefined}
+          >
+            <Image
+              src="/logo.png"
+              alt="PFA"
+              width={80}
+              height={80}
+              className="object-contain invert"
+              priority
+            />
+          </button>
         </div>
 
         {/* 毛玻璃卡片 */}
@@ -352,6 +331,20 @@ function LoginForm() {
               <span className="text-[#ff4e33]">{message.text}</span>
             )}
           </p>
+
+          {/* 本地模式入口：localhost 下可跳过登录 */}
+          {hasSupabaseConfig() && isLocalhost() && (
+            <div className="mt-5 pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => !loading && enterLocalMode(router, redirect)}
+                disabled={loading}
+                className="w-full text-center text-sm text-[#888] hover:text-[#22C55E] transition-colors disabled:opacity-50"
+              >
+                进入本地模式（跳过登录）
+              </button>
+            </div>
+          )}
 
           {/* 社交登录 */}
           {hasSupabaseConfig() && (

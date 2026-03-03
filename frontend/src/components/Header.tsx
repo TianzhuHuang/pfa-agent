@@ -25,10 +25,16 @@ export function Header() {
   const router = useRouter();
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [showLocalMode, setShowLocalMode] = useState(false);
+  const [localModeCookie, setLocalModeCookie] = useState(false);
 
   useEffect(() => {
     setShowLocalMode(!hasSupabaseConfig() && isLocalhost());
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    setLocalModeCookie(document.cookie.includes("pfa_local_mode=1"));
+  }, [pathname]);
 
   useEffect(() => {
     if (!hasSupabaseConfig()) {
@@ -98,9 +104,9 @@ export function Header() {
         ))}
       </nav>
       <div className="ml-auto flex items-center gap-4">
-        {!hasSupabaseConfig() ? (
+        {!hasSupabaseConfig() || localModeCookie ? (
           <>
-            {showLocalMode && <span className="text-xs text-[#888888]">本地模式</span>}
+            {(showLocalMode || localModeCookie) && <span className="text-xs text-[#888888]">本地模式</span>}
             <Link href="/logout" className="text-xs text-[#888888] hover:text-white transition-colors">
               退出
             </Link>

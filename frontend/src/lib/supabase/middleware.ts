@@ -18,11 +18,6 @@ function isProtectedPath(pathname: string): boolean {
   );
 }
 
-function isLocalhost(request: NextRequest): boolean {
-  const host = request.nextUrl.hostname;
-  return host === "localhost" || host === "127.0.0.1";
-}
-
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey =
@@ -30,11 +25,6 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next();
-  }
-
-  // 本地环境：点击 Logo 跳过登录时设置的 cookie，上线时删除
-  if (isLocalhost(request) && request.cookies.get("pfa_local_mode")?.value === "1") {
     return NextResponse.next();
   }
 
@@ -60,6 +50,14 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
+
+  // 本地模式：localhost 下可通过点击 logo 进入，跳过 Supabase 认证
+  const isLocalhost =
+    request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
+  const localModeCookie = request.cookies.get("pfa_local_mode")?.value;
+  if (isLocalhost && localModeCookie === "1" && isProtectedPath(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
 
   const { data } = await supabase.auth.getUser();
 
