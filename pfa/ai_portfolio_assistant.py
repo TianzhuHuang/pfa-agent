@@ -78,6 +78,11 @@ def parse_portfolio_command(user_input: str) -> Dict[str, Any]:
             text = "\n".join(lines)
 
         result = json.loads(text)
+        # 多动作时 AI 可能返回数组，取首条
+        if isinstance(result, list) and result:
+            result = result[0] if isinstance(result[0], dict) else {"error": "解析格式异常"}
+        elif not isinstance(result, dict):
+            result = {"error": "解析格式异常"}
         return result
     except json.JSONDecodeError:
         return {"error": f"解析失败: {text[:200]}"}

@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 router = APIRouter()
 
@@ -26,26 +26,26 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    messages: List[Dict[str, str]]
+    messages: List[Dict[str, Any]]  # 允许 type/payload 等扩展字段，仅使用 role/content
     user_id: Optional[str] = "admin"
     pending_trade: Optional[Dict] = None  # 多轮补全时携带上一轮解析结果
 
 
 class ChatHistoryRequest(BaseModel):
-    messages: List[Dict[str, str]]
+    messages: List[Dict[str, Any]]
     user_id: Optional[str] = "admin"
 
 
 class TickerChatRequest(BaseModel):
     symbol: str
-    messages: List[Dict[str, str]]
+    messages: List[Dict[str, Any]]
     session_id: Optional[str] = None
 
 
 class TickerHistoryRequest(BaseModel):
     symbol: str
     session_id: Optional[str] = None
-    messages: List[Dict[str, str]]
+    messages: List[Dict[str, Any]]
 
 
 @router.get("/chat/all-sessions")
@@ -195,6 +195,14 @@ def chat_stream(req: ChatRequest):
         return {"error": "messages required"}
 
     def generate():
+        try:
+            yield from _generate_inner()
+        except Exception as e:
+            err_msg = str(e)[:200] if str(e) else "服务暂时不可用"
+            yield f"data: {json.dumps({'type': 'chunk', 'content': f'抱歉，处理时出错：{err_msg}'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
+
+    def _generate_inner():
         last_user = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
         pending = req.pending_trade
 
@@ -251,8 +259,12 @@ def chat_stream(req: ChatRequest):
         system = build_system_prompt(holdings, val)
         full = [{"role": "system", "content": system}] + messages
 
+        chunk_count = 0
         for chunk in call_ai_stream(full):
+            chunk_count += 1
             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+        if chunk_count == 0:
+            yield f"data: {json.dumps({'type': 'chunk', 'content': 'AI 暂无回复，请检查 DASHSCOPE_API_KEY 或稍后重试。'}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 
     return StreamingResponse(

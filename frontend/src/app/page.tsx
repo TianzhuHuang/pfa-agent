@@ -152,12 +152,12 @@ export default function DashboardPage() {
         content: "",
       };
       try {
+        // 仅传 role/content，后端不接受 type、payload 等扩展字段
+        const toSend = [...messages, newUserMsg].map((m) => ({ role: m.role, content: m.content || "" }));
         const r = await apiFetch(`${API_BASE}/api/chat/stream`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: [...messages, newUserMsg],
-          }),
+          body: JSON.stringify({ messages: toSend }),
         });
         if (!r.ok) throw new Error(`请求失败 ${r.status}`);
         const reader = r.body?.getReader();
@@ -235,9 +235,19 @@ export default function DashboardPage() {
         });
       } finally {
         setStreaming(false);
+        const finalContent =
+          lastAssistantMsg.type ? lastAssistantMsg.content : (assistantContent || "暂无回复，请稍后重试或检查网络。");
         const finalMsg = lastAssistantMsg.type
           ? lastAssistantMsg
-          : { role: "assistant" as const, content: assistantContent };
+          : { role: "assistant" as const, content: finalContent };
+        if (!assistantContent && !lastAssistantMsg.type) {
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") next[next.length - 1] = { ...last, content: finalContent };
+            return next;
+          });
+        }
         const toSave = [...messages, newUserMsg, finalMsg];
         apiFetch(`${API_BASE}/api/chat/history`, {
           method: "POST",
