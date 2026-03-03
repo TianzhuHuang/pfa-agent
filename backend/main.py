@@ -61,9 +61,11 @@ def global_exception_handler(request, exc):
         content={"status": "error", "error": str(exc)},
     )
 
+_default_cors = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000,http://127.0.0.1:5000"
+_site_url = os.environ.get("SITE_URL") or os.environ.get("NEXT_PUBLIC_SITE_URL")
 _cors_origins = os.environ.get(
     "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000,http://127.0.0.1:5000",
+    f"{_site_url},http://127.0.0.1:3000" if _site_url else _default_cors,
 ).split(",")
 app.add_middleware(
     CORSMiddleware,

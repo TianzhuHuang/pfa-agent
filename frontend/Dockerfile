@@ -2,8 +2,8 @@
 # 构建上下文为 frontend 目录
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 FROM node:20-alpine AS builder
 WORKDIR /app

@@ -7,7 +7,13 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const token_hash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const redirect = requestUrl.searchParams.get("redirect") || "/";
+  let redirect = "/";
+  try {
+    const raw = requestUrl.searchParams.get("redirect") || "/";
+    redirect = raw.startsWith("/") ? raw : `/${raw}`;
+  } catch {
+    redirect = "/";
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey =
@@ -18,6 +24,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=config", requestUrl.origin));
   }
 
+  const redirectUrl = new URL(redirect, requestUrl.origin);
+  const response = NextResponse.redirect(redirectUrl);
+
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -25,18 +34,54 @@ export async function GET(request: Request) {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          cookieStore.set(name, value, options)
-        );
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options);
+          response.cookies.set(name, value, options);
+        });
       },
     },
   });
 
-  if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
-  } else if (token_hash && type) {
-    await supabase.auth.verifyOtp({ token_hash, type: type as "email" });
+  try {
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      return response;
+    }
+    if (token_hash && type) {
+      // token_hash 仅用于 email OTP，type 需为 EmailOtpType
+      const emailTypes = ["signup", "recovery", "invite", "email"] as const;
+      const otpType = emailTypes.includes(type as (typeof emailTypes)[number])
+        ? (type as (typeof emailTypes)[number])
+        : "email";
+      const { error } = await supabase.auth.verifyOtp({ token_hash, type: otpType });
+      if (error) throw error;
+      return response;
+    }
+  } catch (error) {
+    console.error("Auth Callback Error:", error);
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  return NextResponse.redirect(new URL(redirect, requestUrl.origin));
+  // Supabase 可能将 token 放在 URL hash 中（implicit flow），服务端收不到，需客户端 setSession
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>登录中...</title></head>
+<body><p>正在完成登录...</p>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  (function(){
+    var h = window.location.hash.slice(1);
+    if (!h) { window.location.href = '/login?error=no_token'; return; }
+    var p = new URLSearchParams(h);
+    var at = p.get('access_token'), rt = p.get('refresh_token');
+    if (!at) { window.location.href = '/login?error=no_token'; return; }
+    var r = new URLSearchParams(window.location.search).get('redirect') || '/';
+    var supabase = window.supabase.createClient("${supabaseUrl.replace(/"/g, '\\"')}", "${(supabaseAnonKey || "").replace(/"/g, '\\"')}");
+    supabase.auth.setSession({ access_token: at, refresh_token: rt || '' })
+      .then(function(){ window.location.href = r; })
+      .catch(function(){ window.location.href = '/login?error=session'; });
+  })();
+</script></body></html>`;
+  return new NextResponse(html, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
 }

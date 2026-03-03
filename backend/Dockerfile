@@ -5,7 +5,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # 安装后端依赖（backend/requirements.txt）+ 根目录依赖（含 sqlalchemy 等）
-COPY requirements.txt backend/requirements.txt ./
+COPY requirements.txt ./
+COPY backend/requirements.txt ./backend/
 RUN pip install --no-cache-dir -r requirements.txt -r backend/requirements.txt
 
 # 复制整个项目（backend 需导入 pfa/ agents/）
