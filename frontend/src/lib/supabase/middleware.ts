@@ -18,6 +18,11 @@ function isProtectedPath(pathname: string): boolean {
   );
 }
 
+function isLocalhost(request: NextRequest): boolean {
+  const host = request.nextUrl.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey =
@@ -25,6 +30,11 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.next();
+  }
+
+  // 本地环境：点击 Logo 跳过登录时设置的 cookie，上线时删除
+  if (isLocalhost(request) && request.cookies.get("pfa_local_mode")?.value === "1") {
     return NextResponse.next();
   }
 

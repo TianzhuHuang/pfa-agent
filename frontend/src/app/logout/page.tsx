@@ -13,6 +13,7 @@ export default function LogoutPage() {
       if (typeof window !== "undefined") {
         sessionStorage.clear();
         localStorage.removeItem("pfa_chat_fallback");
+        document.cookie = "pfa_local_mode=; path=/; max-age=0";
       }
       if (hasSupabaseConfig()) {
         const supabase = createClient();

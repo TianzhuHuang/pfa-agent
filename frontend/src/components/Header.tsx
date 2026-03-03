@@ -7,6 +7,12 @@ import { useEffect, useState } from "react";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
+function isLocalhost(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1";
+}
+
 function maskEmail(email: string): string {
   const [local, domain] = email.split("@");
   if (!local || !domain) return email;
@@ -18,6 +24,11 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [showLocalMode, setShowLocalMode] = useState(false);
+
+  useEffect(() => {
+    setShowLocalMode(!hasSupabaseConfig() && isLocalhost());
+  }, []);
 
   useEffect(() => {
     if (!hasSupabaseConfig()) {
@@ -89,7 +100,7 @@ export function Header() {
       <div className="ml-auto flex items-center gap-4">
         {!hasSupabaseConfig() ? (
           <>
-            <span className="text-xs text-[#888888]">本地模式</span>
+            {showLocalMode && <span className="text-xs text-[#888888]">本地模式</span>}
             <Link href="/logout" className="text-xs text-[#888888] hover:text-white transition-colors">
               退出
             </Link>
