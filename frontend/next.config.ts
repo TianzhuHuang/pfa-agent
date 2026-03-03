@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   experimental: {
     proxyClientMaxBodySize: "20mb", // 截图 base64 可能较大
   },

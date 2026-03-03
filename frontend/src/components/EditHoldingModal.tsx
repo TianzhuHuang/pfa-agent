@@ -98,10 +98,8 @@ export function EditHoldingModal({ open, holding, onClose, onSaved }: EditHoldin
   useEffect(() => {
     if (!open) return;
     const s = symbol.trim();
-    const shouldSearch =
-      s.length >= 5 && /^\d+$/.test(s) ||
-      s.length >= 6 && /^\d+$/.test(s) ||
-      /^[A-Za-z][A-Za-z0-9.]*$/.test(s) && s.length >= 2;
+    // 与 EntryModal 一致：任意 2 字及以上即触发搜索（支持代码、中文名、拼音、混合输入）
+    const shouldSearch = s.length >= 2;
     if (!shouldSearch) {
       setSymbolSearchResults([]);
       return;
@@ -242,7 +240,7 @@ export function EditHoldingModal({ open, holding, onClose, onSaved }: EditHoldin
             {symbolSearching && (
               <span className="absolute right-3 top-8 text-xs text-[#666]">搜索中...</span>
             )}
-            {symbolSearchResults.length > 1 && !symbolSearching && (
+            {symbolSearchResults.length >= 1 && !symbolSearching && (
               <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-[#0a0a0a] py-1 shadow-xl">
                 {symbolSearchResults.map((item) => (
                   <button

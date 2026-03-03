@@ -5,6 +5,7 @@ PFA Backend — FastAPI
 必须在项目根目录启动：uvicorn backend.main:app --reload --port 8000
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -60,9 +61,13 @@ def global_exception_handler(request, exc):
         content={"status": "error", "error": str(exc)},
     )
 
+_cors_origins = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000,http://127.0.0.1:5000",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5000", "http://127.0.0.1:5000"],
+    allow_origins=[o.strip() for o in _cors_origins if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,7 +77,6 @@ app.add_middleware(
 @app.middleware("http")
 async def set_user_context(request, call_next):
     """从 Authorization 头解析 user_id 并设置到 context，供 portfolio_store 等读取。"""
-    import os
     from backend.context import current_user_id
 
     user_id = "admin"

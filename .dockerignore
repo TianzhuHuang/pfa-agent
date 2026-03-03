@@ -1,0 +1,17 @@
+# 避免将无关文件复制进镜像
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+.next
+__pycache__
+*.pyc
+.venv
+venv
+*.egg-info
+.DS_Store
+.idea
+*.md
+!README.md

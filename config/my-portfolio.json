@@ -13,7 +13,7 @@
       "source": "ocr",
       "position_pct": 0.0,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128357"
+      "updated_at": "2026-03-03T04:15:31.143737"
     },
     {
       "symbol": "ETH",
@@ -27,7 +27,7 @@
       "source": "ocr",
       "position_pct": 0.0,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128358"
+      "updated_at": "2026-03-03T04:15:31.143738"
     },
     {
       "symbol": "USDT",
@@ -41,7 +41,7 @@
       "source": "ocr",
       "position_pct": 0.0,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128359"
+      "updated_at": "2026-03-03T04:15:31.143739"
     },
     {
       "symbol": "币安人生",
@@ -55,10 +55,10 @@
       "source": "ocr",
       "position_pct": 0.0,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128359"
+      "updated_at": "2026-03-03T04:15:31.143740"
     },
     {
-      "symbol": "2883",
+      "symbol": "00883",
       "name": "中国海洋石油",
       "market": "HK",
       "quantity": 8000.0,
@@ -69,27 +69,28 @@
       "source": "ocr",
       "position_pct": 21.207,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128360",
+      "updated_at": "2026-03-03T04:15:31.143741",
       "ocr_confirmed": true
     },
     {
-      "symbol": "857",
+      "symbol": "00857",
+      "account": "平安证券-生活",
+      "updated_at": "2026-03-03T12:15:40.739965+08:00",
       "name": "中国石油股份",
       "market": "HK",
       "quantity": 8000.0,
       "cost_price": 10.03,
       "currency": "HKD",
       "exchange": null,
-      "account": "平安证券-生活",
       "source": "ocr",
       "position_pct": 9.219,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128360"
+      "ocr_confirmed": true
     },
     {
-      "symbol": "285",
+      "symbol": "600900",
       "name": "长江电力",
-      "market": "HK",
+      "market": "A",
       "quantity": 2100.0,
       "cost_price": 26.57,
       "currency": "CNY",
@@ -98,10 +99,11 @@
       "source": "ocr",
       "position_pct": -0.1,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128361"
+      "updated_at": "2026-03-03T04:15:31.143743",
+      "ocr_confirmed": true
     },
     {
-      "symbol": "2382",
+      "symbol": "02669",
       "name": "中海物业",
       "market": "HK",
       "quantity": 10000.0,
@@ -112,12 +114,13 @@
       "source": "ocr",
       "position_pct": -25.233,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128361"
+      "updated_at": "2026-03-03T04:15:31.143743",
+      "ocr_confirmed": true
     },
     {
-      "symbol": "819",
+      "symbol": "600436",
       "name": "片仔癀",
-      "market": "HK",
+      "market": "A",
       "quantity": 100.0,
       "cost_price": 159.49,
       "currency": "CNY",
@@ -126,7 +129,8 @@
       "source": "ocr",
       "position_pct": -84.171,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128362"
+      "updated_at": "2026-03-03T04:15:31.143744",
+      "ocr_confirmed": true
     },
     {
       "symbol": "600009",
@@ -140,7 +144,7 @@
       "source": "ocr",
       "position_pct": -97.199,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128362"
+      "updated_at": "2026-03-03T04:15:31.143745"
     },
     {
       "symbol": "000858",
@@ -154,7 +158,7 @@
       "source": "ocr",
       "position_pct": 28.525,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128363",
+      "updated_at": "2026-03-03T04:15:31.143745",
       "ocr_confirmed": true
     },
     {
@@ -169,7 +173,7 @@
       "source": "ocr",
       "position_pct": 202.797,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128363"
+      "updated_at": "2026-03-03T04:15:31.143746"
     },
     {
       "symbol": "600312",
@@ -183,7 +187,7 @@
       "source": "ocr",
       "position_pct": 152.082,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128364"
+      "updated_at": "2026-03-03T04:15:31.143747"
     },
     {
       "symbol": "600519",
@@ -197,7 +201,7 @@
       "source": "ocr",
       "position_pct": 1.221,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128365"
+      "updated_at": "2026-03-03T04:15:31.143747"
     },
     {
       "symbol": "600900",
@@ -211,7 +215,7 @@
       "source": "ocr",
       "position_pct": 0.021,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128365"
+      "updated_at": "2026-03-03T04:15:31.143748"
     },
     {
       "symbol": "600519",
@@ -225,7 +229,7 @@
       "source": "ocr",
       "position_pct": 2.2,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128366"
+      "updated_at": "2026-03-03T04:15:31.143749"
     },
     {
       "symbol": "00883",
@@ -239,7 +243,7 @@
       "source": "ocr",
       "position_pct": 20.391,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128366"
+      "updated_at": "2026-03-03T04:15:31.143750"
     },
     {
       "symbol": "600436",
@@ -253,7 +257,7 @@
       "source": "ocr",
       "position_pct": 688.501,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128367"
+      "updated_at": "2026-03-03T04:15:31.143751"
     },
     {
       "symbol": "600089",
@@ -267,7 +271,7 @@
       "source": "ocr",
       "position_pct": 27.18,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128367"
+      "updated_at": "2026-03-03T04:15:31.143751"
     },
     {
       "symbol": "600312",
@@ -281,7 +285,7 @@
       "source": "ocr",
       "position_pct": 19.381,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128368"
+      "updated_at": "2026-03-03T04:15:31.143752"
     },
     {
       "symbol": "600900",
@@ -295,7 +299,7 @@
       "source": "ocr",
       "position_pct": 0.25,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128368"
+      "updated_at": "2026-03-03T04:15:31.143753"
     },
     {
       "symbol": "02669",
@@ -309,7 +313,7 @@
       "source": "ocr",
       "position_pct": 29.747,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128369"
+      "updated_at": "2026-03-03T04:15:31.143754"
     },
     {
       "symbol": "000423",
@@ -323,7 +327,7 @@
       "source": "ocr",
       "position_pct": 99.07,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128369"
+      "updated_at": "2026-03-03T04:15:31.143755"
     },
     {
       "symbol": "600009",
@@ -337,7 +341,7 @@
       "source": "ocr",
       "position_pct": 98.149,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128370"
+      "updated_at": "2026-03-03T04:15:31.143756"
     },
     {
       "symbol": "NIO",
@@ -351,7 +355,7 @@
       "source": "ocr",
       "position_pct": 0.0,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128370",
+      "updated_at": "2026-03-03T04:15:31.143756",
       "ocr_confirmed": false
     },
     {
@@ -366,7 +370,7 @@
       "source": "ocr",
       "position_pct": 0.0,
       "memo_history": [],
-      "updated_at": "2026-03-03T03:11:51.128371",
+      "updated_at": "2026-03-03T04:15:31.143757",
       "ocr_confirmed": false
     }
   ],
@@ -378,8 +382,8 @@
       "broker": "",
       "account_type": "股票",
       "balance": 0.0,
-      "created_at": "2026-03-03T03:11:51.127236",
-      "updated_at": "2026-03-03T03:11:51.127237"
+      "created_at": "2026-03-03T04:15:31.142455",
+      "updated_at": "2026-03-03T04:15:31.142458"
     },
     {
       "id": "数字货币",
@@ -388,8 +392,8 @@
       "broker": "",
       "account_type": "数字货币",
       "balance": 0.0,
-      "created_at": "2026-03-03T03:11:51.127237",
-      "updated_at": "2026-03-03T03:11:51.127238"
+      "created_at": "2026-03-03T04:15:31.142458",
+      "updated_at": "2026-03-03T04:15:31.142459"
     },
     {
       "id": "平安证券-生活",
@@ -398,8 +402,8 @@
       "broker": "",
       "account_type": "股票",
       "balance": 2253.45,
-      "created_at": "2026-03-03T03:11:51.127238",
-      "updated_at": "2026-03-03T03:11:51.127238"
+      "created_at": "2026-03-03T04:15:31.142459",
+      "updated_at": "2026-03-03T04:15:31.142459"
     },
     {
       "id": "平安证券-融资",
@@ -408,8 +412,8 @@
       "broker": "",
       "account_type": "股票",
       "balance": 193.38,
-      "created_at": "2026-03-03T03:11:51.127239",
-      "updated_at": "2026-03-03T03:11:51.127239"
+      "created_at": "2026-03-03T04:15:31.142460",
+      "updated_at": "2026-03-03T04:15:31.142461"
     },
     {
       "id": "老妈的股票账户",
@@ -418,8 +422,8 @@
       "broker": "",
       "account_type": "股票",
       "balance": 986.31,
-      "created_at": "2026-03-03T03:11:51.127239",
-      "updated_at": "2026-03-03T03:11:51.127240"
+      "created_at": "2026-03-03T04:15:31.142461",
+      "updated_at": "2026-03-03T04:15:31.142461"
     },
     {
       "id": "海外-雪盈",
@@ -428,8 +432,8 @@
       "broker": "",
       "account_type": "股票",
       "balance": 0.0,
-      "created_at": "2026-03-03T03:11:51.127240",
-      "updated_at": "2026-03-03T03:11:51.127240"
+      "created_at": "2026-03-03T04:15:31.142462",
+      "updated_at": "2026-03-03T04:15:31.142462"
     }
   ],
   "channels": {
