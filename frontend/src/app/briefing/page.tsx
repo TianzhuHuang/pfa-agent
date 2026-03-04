@@ -146,6 +146,7 @@ export default function BriefingPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [loadedContent, setLoadedContent] = useState<Record<number, Briefing>>({});
+  const [loadError, setLoadError] = useState<Record<number, string>>({});
   const [filterYear, setFilterYear] = useState<string>("");
   const [filterMonth, setFilterMonth] = useState<string>("");
   const [filterDay, setFilterDay] = useState<string>("");
@@ -218,17 +219,24 @@ export default function BriefingPage() {
 
   useEffect(() => {
     expandedIds.forEach((id) => {
-      if (!loadedContent[id]) {
+      if (!loadedContent[id] && !loadError[id]) {
         apiFetch(`${API_BASE}/api/briefing/${id}`)
           .then((r) => r.json())
           .then((d) => {
+            if (d.status === "error") {
+              setLoadError((prev) => ({ ...prev, [id]: d.error || "加载失败" }));
+              return;
+            }
             const content = typeof d.content === "string" ? JSON.parse(d.content) : d.content;
             if (content) setLoadedContent((prev) => ({ ...prev, [id]: content }));
+            else setLoadError((prev) => ({ ...prev, [id]: "内容为空" }));
           })
-          .catch(() => {});
+          .catch((e) => {
+            setLoadError((prev) => ({ ...prev, [id]: e.message || "网络错误" }));
+          });
       }
     });
-  }, [expandedIds]);
+  }, [expandedIds, loadedContent, loadError]);
 
   const generate = useCallback(async () => {
     setLoading(true);
@@ -502,6 +510,8 @@ export default function BriefingPage() {
                           briefing={loadedContent[r.id]}
                           onItemClick={setDrawerItem}
                         />
+                      ) : loadError[r.id] ? (
+                        <div className="py-4 text-center text-sm text-red-400">{loadError[r.id]}</div>
                       ) : (
                         <div className="py-4 text-center text-sm text-[#666]">加载中...</div>
                       )}

@@ -18,8 +18,8 @@ if ! grep -qE '^NEXT_PUBLIC_SUPABASE_URL=.+' .env || ! grep -qE '^NEXT_PUBLIC_SU
   exit 1
 fi
 
-echo ">>> 构建（--env-file .env 确保变量注入）..."
-docker compose --env-file .env build --no-cache
+echo ">>> 构建（--env-file .env 确保变量注入，使用缓存加速）..."
+docker compose --env-file .env build
 
 echo ">>> 启动..."
 docker compose up -d

@@ -22,6 +22,7 @@ interface HoldingRow {
   symbol?: string;
   name?: string;
   current_price?: number;
+  price_loaded?: boolean;
   cost_price?: number;
   quantity?: number;
   value_cny?: number;
@@ -438,7 +439,8 @@ export default function StockDetailPage() {
     );
   }
 
-  const price = primaryHolding.current_price ?? primaryHolding.cost_price ?? 0;
+  const priceLoaded = primaryHolding.price_loaded !== false;
+  const price = priceLoaded ? (primaryHolding.current_price ?? 0) : null;
   const todayPct = primaryHolding.today_pct ?? 0;
   const todayUp = todayPct >= 0;
   const sentimentLabel = sentiment?.label || "暂无情绪";
@@ -465,7 +467,7 @@ export default function StockDetailPage() {
           <span className="text-lg text-[#888]">
             {name} ({symbol}.{market})
           </span>
-          {price > 0 && (
+          {(price ?? 0) > 0 && (
             <span
               className={`inline-flex items-center rounded px-2.5 py-1 text-sm font-medium ${
                 todayUp ? upBadge : downBadge
@@ -524,16 +526,28 @@ export default function StockDetailPage() {
           <div className="space-y-4">
             <div className="rounded-lg bg-[#1A1A1A] p-4">
               <div className="text-2xl font-bold text-white">
-                {sym}
-                {price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                {priceLoaded && price != null ? (
+                  <>
+                    {sym}
+                    {price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-2 text-[#888]">
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#888] border-t-transparent" />
+                    获取中
+                  </span>
+                )}
               </div>
               <div
                 className={`text-sm font-semibold ${
-                  todayUp ? upColor : downColor
+                  priceLoaded ? (todayUp ? upColor : downColor) : "text-[#888]"
                 }`}
               >
-                {(todayPct >= 0 ? "+" : "")}
-                {todayPct.toFixed(2)}%
+                {priceLoaded ? (
+                  <>{(todayPct >= 0 ? "+" : "")}{todayPct.toFixed(2)}%</>
+                ) : (
+                  "—"
+                )}
               </div>
             </div>
             <div className="rounded-lg bg-[#1A1A1A] p-4">

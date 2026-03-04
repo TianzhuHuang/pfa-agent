@@ -24,6 +24,7 @@ interface HoldingRow {
   name?: string;
   is_cash?: boolean;
   current_price?: number;
+  price_loaded?: boolean;
   cost_price?: number;
   quantity?: number;
   value_cny?: number;
@@ -79,6 +80,8 @@ export default function DashboardPage() {
   const [countdown, setCountdown] = useState(Math.floor(PORTFOLIO_REFRESH_INTERVAL / 1000));
   const [flashType, setFlashType] = useState<"up" | "down" | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState(0);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const prevTotalRef = useRef<number | null>(null);
   const countdownResetRef = useRef<() => void>(() => {});
   const router = useRouter();
@@ -272,10 +275,16 @@ export default function DashboardPage() {
   const refreshPortfolio = useCallback(
     (options?: { silent?: boolean; resetTimer?: boolean }) => {
       const { silent = false, resetTimer = true } = options ?? {};
-      if (!silent) setRefreshing(true);
+      if (!silent) {
+        setRefreshing(true);
+        setRefreshError(null);
+      }
       const prevTotal = prevTotalRef.current;
       apiFetch(`${API_BASE}/api/portfolio?display_currency=${displayCurrency}`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
         .then((d) => {
           const nextTotal = d?.total_value_cny ?? null;
           if (prevTotal != null && nextTotal != null && prevTotal !== nextTotal) {
@@ -283,9 +292,16 @@ export default function DashboardPage() {
           }
           prevTotalRef.current = nextTotal;
           setVal(d);
+          setRefreshError(null);
           if (resetTimer) countdownResetRef.current();
         })
-        .catch(() => setVal(null))
+        .catch((err) => {
+          // 不清空数据，保留上次成功的结果
+          console.error("Portfolio refresh failed:", err);
+          if (!silent) {
+            setRefreshError(err.message || "刷新失败");
+          }
+        })
         .finally(() => {
           if (!silent) setRefreshing(false);
         });
@@ -442,7 +458,19 @@ export default function DashboardPage() {
               </div>
               {!loading && (
                 <div className="mt-3 flex items-center gap-2">
-                  {visible && isTradingHours() ? (
+                  {refreshError ? (
+                    <>
+                      <div className="flex-1" />
+                      <span className="shrink-0 text-[10px] text-red-400">刷新失败</span>
+                    </>
+                  ) : refreshing ? (
+                    <>
+                      <div className="flex-1 h-0.5 overflow-hidden rounded-full bg-white/5">
+                        <div className="h-full rounded-full bg-[#1976d2]/60 animate-pulse" style={{ width: "100%" }} />
+                      </div>
+                      <span className="shrink-0 text-[10px] text-[#1976d2] tabular-nums">刷新中...</span>
+                    </>
+                  ) : visible && isTradingHours() ? (
                     <>
                       <div className="flex-1 h-0.5 overflow-hidden rounded-full bg-white/5">
                         <div
@@ -453,7 +481,10 @@ export default function DashboardPage() {
                       <span className="shrink-0 text-[10px] text-[#555] tabular-nums">{countdown}s 后同步</span>
                     </>
                   ) : (
-                    <div className="flex-1" />
+                    <>
+                      <div className="flex-1" />
+                      <span className="shrink-0 text-[10px] text-[#555]">非交易时段</span>
+                    </>
                   )}
                   <button
                     onClick={handleManualRefresh}
@@ -610,7 +641,8 @@ export default function DashboardPage() {
                             const rowSym = currencySymbol(accountCur);
                             const isConvertedRow = accountCur !== "CNY";
                             const currencyErr = h.currency_error === true;
-                            const marketValDisplay = currencyErr ? null : rowVal;
+                            // 价格未加载时市值显示 --，禁止用成本价占位
+                            const marketValDisplay = currencyErr ? null : (h.price_loaded === false ? null : rowVal);
                             return (
                               <tr
                                 key={`${h.symbol}-${h.account}-${i}`}
@@ -641,10 +673,17 @@ export default function DashboardPage() {
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-right text-white">
-                                  {h.is_cash ? "1.00" : `${priceSym}${(h.current_price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
+                                  {h.is_cash ? "1.00" : h.price_loaded === false ? (
+                                    <span className="inline-flex items-center gap-1 text-[#888]">
+                                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#888] border-t-transparent" />
+                                      <span className="text-xs">获取中</span>
+                                    </span>
+                                  ) : `${priceSym}${(h.current_price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {h.is_cash ? (
+                                    <span className="text-[#888888]">—</span>
+                                  ) : h.price_loaded === false ? (
                                     <span className="text-[#888888]">—</span>
                                   ) : (
                                     <span
@@ -671,8 +710,10 @@ export default function DashboardPage() {
                                 >
                                   {currencyErr ? (
                                     <span className="cursor-pointer hover:underline" title="币种配置错误，点击右侧编辑修正" onClick={() => setEditHolding(h)}>--</span>
+                                  ) : marketValDisplay == null ? (
+                                    <span className="text-[#888888]">—</span>
                                   ) : (
-                                    <span>{rowSym}{(marketValDisplay ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span>{rowSym}{marketValDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-right text-[#ff4e33]">

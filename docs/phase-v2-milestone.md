@@ -37,7 +37,15 @@
 | **Docker 部署** | docker-compose 构建 Next.js + FastAPI，阿里云 ECS 部署 | `995bc38`、`f625418` |
 | **部署 .env 修复** | rsync 排除 .env、构建显式 `--env-file .env`，新增 `scripts/deploy-ecs.sh` | `9cf551d` |
 
-### 1.5 Phase 3 与数据源
+### 1.5 多源价格 API（2025-03）
+
+| 里程碑 | 说明 | 参考文档 |
+|--------|------|----------|
+| **Price API Overhaul** | 数字货币 Binance/CoinGecko、SGX Yahoo Finance、现价/成本价逻辑修复 | `docs/data-sources.md` §3.6 |
+| **前端 Loading 兜底** | 现价/市值未加载时显示「获取中」或 `—`，禁止成本价占位 | `frontend/src/app/page.tsx` |
+| **API 容错** | 单源失败不崩溃，支持 HTTP_PROXY 生产代理 | `pfa/portfolio_valuation.py` |
+
+### 1.6 Phase 3 与数据源
 
 | 里程碑 | 说明 | 参考文档 |
 |--------|------|----------|

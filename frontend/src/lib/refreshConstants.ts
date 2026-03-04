@@ -6,8 +6,8 @@
 /** 个股详情页：10 秒 */
 export const DETAIL_REFRESH_INTERVAL = 10_000;
 
-/** 持仓总览页：10 分钟 */
-export const PORTFOLIO_REFRESH_INTERVAL = 10 * 60 * 1000;
+/** 持仓总览页：120 秒 */
+export const PORTFOLIO_REFRESH_INTERVAL = 120 * 1000;
 
 /** 汇率：5 小时（取 4-6h 中间值） */
 export const FX_REFRESH_INTERVAL = 5 * 60 * 60 * 1000;

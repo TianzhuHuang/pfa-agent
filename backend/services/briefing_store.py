@@ -24,12 +24,21 @@ def _resolve_user_id(user_id: Optional[str] = None) -> str:
         return "admin"
 
 
+def _sanitize_json_text(text: str) -> str:
+    """移除截断的 Unicode (U+FFFD) 及控制字符，便于 JSON 解析。"""
+    if not text:
+        return text
+    text = text.replace("\uFFFD", "")
+    return "".join(c for c in text if c in "\n\t\r" or (ord(c) >= 32 and ord(c) != 127))
+
+
 def _extract_briefing(result: dict) -> Optional[dict]:
     ar = result.get("analyst_result", {})
     briefing = ar.get("briefing")
     if not briefing and ar.get("analysis"):
         try:
-            briefing = json.loads(ar.get("analysis", "{}"))
+            raw = _sanitize_json_text(ar.get("analysis", "{}"))
+            briefing = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             pass
     return briefing
@@ -58,7 +67,8 @@ def save_briefing_report(result: dict, user_id: Optional[str] = None) -> Optiona
     uid = _resolve_user_id(user_id)
     try:
         from backend.database.supabase_store import use_supabase, save_briefing_report as _save_sb
-        if use_supabase():
+        # admin 非 UUID，Supabase 会报错；本地模式走 SQLite
+        if use_supabase() and uid not in ("admin", ""):
             _save_sb(result, uid)
             return None
     except (ImportError, ValueError):
@@ -115,7 +125,8 @@ def list_briefing_reports(
     uid = _resolve_user_id(user_id)
     try:
         from backend.database.supabase_store import use_supabase, list_briefing_reports as _list_sb
-        if use_supabase():
+        # admin 非 UUID，Supabase user_id 为 UUID 类型，会报错；本地模式走 SQLite
+        if use_supabase() and uid not in ("admin", ""):
             return _list_sb(uid, limit, offset, from_date, to_date, include_content)
     except (ImportError, ValueError):
         pass

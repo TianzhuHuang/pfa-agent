@@ -7,8 +7,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import requests
+
+_log = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -91,38 +94,109 @@ def get_holding_currency(h: Dict) -> str:
     return market_to_currency(h.get("market", "A"))
 
 
-def get_realtime_prices(holdings: List[Dict]) -> Dict[str, Dict]:
+def get_realtime_prices(holdings: List[Dict], accounts: Optional[List[Dict]] = None) -> Dict[str, Dict]:
     """Get real-time prices for all holdings.
 
-    Uses Sina Finance API (instant, no browser needed).
-    Fallback to Xueqiu via Playwright if Sina fails.
-    """
-    try:
-        from pfa.realtime_quote import get_realtime_quotes
-        return get_realtime_quotes(holdings)
-    except Exception:
-        pass
+    多源聚合：Sina(A/HK/US) + Binance/CoinGecko(数字货币) + Yahoo(SGX)。
+    单源失败不中断，返回部分结果。
 
-    # Fallback: Xueqiu via Playwright (slow but reliable)
-    prices = {}
-    try:
-        from pfa.browser_fetcher import fetch_xueqiu_quote
-        symbols = []
-        for h in holdings:
-            sym, mkt = h["symbol"], h.get("market", "A")
-            prefix = "SH" if mkt == "A" and sym.startswith("6") else "SZ" if mkt == "A" else ""
-            symbols.append(f"{prefix}{sym}")
-        quotes = fetch_xueqiu_quote(symbols)
-        for q in quotes:
-            raw_sym = q["symbol"]
-            clean = raw_sym.lstrip("SH").lstrip("SZ")
-            prices[clean] = {
-                "current": q.get("current"),
-                "percent": q.get("percent"),
-                "name": q.get("name", ""),
-            }
-    except Exception:
-        pass
+    Args:
+        holdings: 持仓列表
+        accounts: 账户列表（可选），用于按 account_type 识别数字货币账户
+    """
+    prices: Dict[str, Dict] = {}
+
+    # 数字货币账户名集合：account_type=数字货币 或 account 名为「数字货币」
+    crypto_account_names: set = {"数字货币"}
+    if accounts:
+        for acc in accounts:
+            if str(acc.get("account_type", "")).strip() == "数字货币":
+                name = str(acc.get("name", acc.get("id", ""))).strip()
+                if name:
+                    crypto_account_names.add(name)
+
+    # 1. Sina: A 股、港股、美股
+    sina_holdings = [h for h in holdings if str(h.get("market", "")).upper() in ("A", "HK", "US")]
+    if sina_holdings:
+        try:
+            from pfa.realtime_quote import get_realtime_quotes
+            quotes = get_realtime_quotes(sina_holdings)
+            prices.update(quotes)
+            if not quotes and sina_holdings:
+                _log.warning("get_realtime_quotes 返回空，A/HK/US 共 %d 只", len(sina_holdings))
+        except Exception as e:
+            _log.warning("A/HK/US 价格获取失败: %s", e, exc_info=True)
+
+    # 2. 数字货币：Binance 优先，CoinGecko 回退
+    crypto_holdings = [
+        h for h in holdings
+        if str(h.get("market", "")).upper() in ("OT", "CRYPTO")
+        or str(h.get("account", "")).strip() in crypto_account_names
+    ]
+    if crypto_holdings:
+        try:
+            from pfa.crypto_quote import get_crypto_quotes
+            prices.update(get_crypto_quotes(crypto_holdings))
+        except Exception as e:
+            _log.warning("Crypto price fetch failed: %s", e)
+
+    # 3. SGX 新加坡市场：Yahoo Finance
+    sgx_holdings = [
+        h for h in holdings
+        if str(h.get("market", "")).upper() == "SGX" or str(h.get("exchange", "")).upper() == "SGX"
+    ]
+    if sgx_holdings:
+        try:
+            from pfa.sgx_quote import get_sgx_quotes
+            prices.update(get_sgx_quotes(sgx_holdings))
+        except Exception as e:
+            _log.warning("SGX price fetch failed: %s", e)
+
+    # 4. OT 中非数字货币（如 SGX 标的误标为 OT）：尝试 SGX
+    ot_non_crypto = [
+        h for h in holdings
+        if str(h.get("market", "")).upper() == "OT"
+        and str(h.get("account", "")).strip() != "数字货币"
+        and h["symbol"] not in prices
+    ]
+    if ot_non_crypto:
+        try:
+            from pfa.sgx_quote import get_sgx_quotes
+            prices.update(get_sgx_quotes(ot_non_crypto))
+        except Exception as e:
+            _log.warning("SGX fallback for OT non-crypto failed: %s", e)
+
+    # 5. Sina 失败时的 Xueqiu 回退（仅 A/HK/US）
+    if sina_holdings and not any(prices.get(h["symbol"]) for h in sina_holdings):
+        try:
+            from pfa.browser_fetcher import fetch_xueqiu_quote
+            symbols = []
+            for h in sina_holdings:
+                sym, mkt = h["symbol"], str(h.get("market", "A")).upper()
+                if mkt == "A":
+                    prefix = "SH" if str(sym).startswith("6") else "SZ"
+                elif mkt == "HK":
+                    prefix = "HK"
+                else:
+                    prefix = ""
+                symbols.append(f"{prefix}{sym}" if prefix else sym)
+            quotes = fetch_xueqiu_quote(symbols)
+            for q in quotes:
+                raw_sym = q.get("symbol", "")
+                for p in ("SH", "SZ", "HK"):
+                    if raw_sym.upper().startswith(p):
+                        raw_sym = raw_sym[len(p):]
+                        break
+                prices[raw_sym] = {"current": q.get("current"), "percent": q.get("percent"), "name": q.get("name", "")}
+        except Exception as e:
+            _log.warning("Xueqiu fallback failed: %s", e)
+
+    loaded = len(prices)
+    total = len(holdings)
+    if total > 0 and loaded == 0:
+        _log.warning("get_realtime_prices: 0/%d 价格获取成功，请检查网络或 API", total)
+    elif loaded < total:
+        _log.info("get_realtime_prices: %d/%d 价格获取成功", loaded, total)
     return prices
 
 
@@ -176,39 +250,58 @@ def calculate_portfolio_value(
 
         p = prices.get(sym, {})
         current = p.get("current")
+        price_loaded = current is not None
         if current is not None:
             current = float(current)
+            # 现价为 0 时多为 API 异常，避免误显示 0（现金等除外）
+            if current == 0 and not h.get("is_cash"):
+                current = None
+                price_loaded = False
         else:
-            current = cost_price
+            current = None  # 未加载成功时保持 null，禁止用成本价占位
 
-        value_local = round(current * quantity, 4)
+        # 未加载价格时 value_local 不参与 total_value，市值显示 --
+        if price_loaded and current is not None:
+            value_local = round(current * quantity, 4)
+            value_target = round(value_local * fx_rate, 4) if not currency_error else 0.0
+            total_value += value_target
+        else:
+            value_local = None
+            value_target = None
+
         cost_local = round(cost_price * quantity, 4)
-        value_target = round(value_local * fx_rate, 4) if not currency_error else 0.0
         cost_target = round(cost_local * fx_rate, 4) if not currency_error else 0.0
-        pnl_target = value_target - cost_target
+        pnl_target = (value_target - cost_target) if value_target is not None else 0.0
 
-        total_value += value_target
         total_cost += cost_target
 
         if account not in by_account:
             by_account[account] = {"value": 0, "cost": 0, "pnl": 0, "holdings": []}
-        by_account[account]["value"] += value_target
+        v_target = value_target if value_target is not None else 0.0
+        by_account[account]["value"] += v_target
         by_account[account]["cost"] += cost_target
         by_account[account]["pnl"] += pnl_target
         today_pct = p.get("percent")
         today_pct_val = float(today_pct) if today_pct is not None else 0.0
-        today_pnl_target = round(value_local * (today_pct_val / 100) * fx_rate, 2) if not currency_error and today_pct_val else 0.0
+        today_pnl_target = (
+            round(value_local * (today_pct_val / 100) * fx_rate, 2)
+            if value_local is not None and not currency_error and today_pct_val
+            else 0.0
+        )
+
+        pnl_pct_val = ((current - cost_price) / cost_price * 100) if (price_loaded and current is not None and cost_price > 0) else 0.0
 
         ho: Dict[str, Any] = {
             **h,
             "current_price": current,
+            "price_loaded": price_loaded,
             "value_local": value_local,
             "currency": currency,
-            "value_cny": value_target,
-            "value_display": round(value_target, 2) if not currency_error else None,
+            "value_cny": v_target,
+            "value_display": round(v_target, 2) if not currency_error and price_loaded else None,
             "currency_error": currency_error,
             "pnl_cny": pnl_target,
-            "pnl_pct": ((current - cost_price) / cost_price * 100) if cost_price > 0 else 0,
+            "pnl_pct": pnl_pct_val,
             "today_pct": today_pct_val,
             "today_pnl": today_pnl_target,
         }
@@ -216,7 +309,7 @@ def calculate_portfolio_value(
 
         if market not in by_market:
             by_market[market] = {"value": 0, "count": 0}
-        by_market[market]["value"] += value_target
+        by_market[market]["value"] += v_target
         by_market[market]["count"] += 1
 
     total_pnl = total_value - total_cost

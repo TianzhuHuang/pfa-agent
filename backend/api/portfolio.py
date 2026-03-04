@@ -79,7 +79,7 @@ def _get_valuation(display_currency: str = "CNY") -> Dict:
             "fx_rates": {k: round(v, 4) for k, v in fx_raw.items()},
         }
     else:
-        prices = get_realtime_prices(holdings)
+        prices = get_realtime_prices(holdings, accounts=accounts)
         val = calculate_portfolio_value(holdings, prices, target_currency=display_currency)
 
     # Merge account balances into valuation
@@ -576,6 +576,48 @@ def delete_account(account_id: str):
     if not ok:
         raise HTTPException(status_code=400, detail="无法删除该账户（可能为「默认」或不存在）")
     return {"ok": True}
+
+
+@router.get("/portfolio/debug-prices")
+def debug_prices():
+    """诊断价格获取：测试腾讯/东财等 API 是否可从当前环境访问。"""
+    from pfa.realtime_quote import (
+        _fetch_tencent_ashares,
+        _fetch_tencent_hk,
+        _fetch_eastmoney_ashares,
+        get_realtime_quotes,
+    )
+
+    result = {"ok": False, "tencent": {}, "eastmoney": {}, "errors": []}
+    test_ashare = [{"symbol": "600519", "market": "A", "name": "贵州茅台"}]
+    test_hk = [{"symbol": "00883", "market": "HK", "name": "中国海洋石油"}]
+
+    # 1. 腾讯 A 股 + 港股（ECS 机房首选）
+    try:
+        t_a = _fetch_tencent_ashares(test_ashare)
+        t_h = _fetch_tencent_hk(test_hk)
+        result["tencent"] = {"ashare": t_a, "hk": t_h}
+        if t_a or t_h:
+            result["ok"] = True
+    except Exception as e:
+        result["errors"].append(f"Tencent: {type(e).__name__}: {e}")
+
+    # 2. 东财 A 股
+    try:
+        e_a = _fetch_eastmoney_ashares(test_ashare)
+        result["eastmoney"] = {"ashare": e_a}
+    except Exception as e:
+        result["errors"].append(f"EastMoney: {type(e).__name__}: {e}")
+
+    # 3. 完整 get_realtime_quotes 测试
+    try:
+        all_test = test_ashare + test_hk
+        quotes = get_realtime_quotes(all_test)
+        result["full_fetch"] = {"count": len(quotes), "symbols": list(quotes.keys())}
+    except Exception as e:
+        result["errors"].append(f"get_realtime_quotes: {type(e).__name__}: {e}")
+
+    return result
 
 
 @router.post("/portfolio/file/parse")

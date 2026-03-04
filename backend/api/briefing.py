@@ -18,12 +18,21 @@ from fastapi.responses import StreamingResponse
 router = APIRouter()
 
 
+def _sanitize_json_text(text: str) -> str:
+    """移除截断的 Unicode (U+FFFD) 及控制字符，便于 JSON 解析。"""
+    if not text:
+        return text
+    text = text.replace("\uFFFD", "")
+    return "".join(c for c in text if c in "\n\t\r" or (ord(c) >= 32 and ord(c) != 127))
+
+
 def _extract_briefing(result: dict) -> dict | None:
     ar = result.get("analyst_result", {})
     briefing = ar.get("briefing")
     if not briefing and ar.get("analysis"):
         try:
-            briefing = json.loads(ar.get("analysis", "{}"))
+            raw = _sanitize_json_text(ar.get("analysis", "{}"))
+            briefing = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             pass
     return briefing
@@ -74,13 +83,18 @@ def get_briefing_by_id(report_id: int):
     uid = get_current_user_id()
     try:
         from backend.database.supabase_store import use_supabase, get_briefing_by_id as _get_sb
-        if use_supabase():
+        # admin 非 UUID，Supabase 会报错；本地模式走 SQLite
+        if use_supabase() and uid not in ("admin", ""):
             r = _get_sb(report_id, uid)
             if not r:
                 return {"status": "error", "error": "未找到"}
             return r
     except (ImportError, ValueError):
         pass
+    except Exception as e:
+        # Supabase 错误（如 UUID 类型不匹配）回退到 SQLite
+        import logging
+        logging.warning(f"Supabase get_briefing failed, falling back to SQLite: {e}")
     from backend.database.session import get_session
     from backend.database.models import BriefingReport
     db = get_session()

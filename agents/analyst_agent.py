@@ -42,7 +42,7 @@ def _call_llm(prompt: str, api_key: str, model: str = DASHSCOPE_MODEL) -> str:
                  "Content-Type": "application/json"},
         json={"model": model,
               "messages": [{"role": "user", "content": prompt}],
-              "temperature": 0.3, "max_tokens": 2000},
+              "temperature": 0.3, "max_tokens": 4096},
         timeout=60,  # 60 秒超时，超时后由 Secretary 返回明确错误
         proxies={"http": None, "https": None},  # 绕过系统代理，避免 ProxyError
     )
@@ -108,6 +108,20 @@ def build_analysis_prompt(holdings_desc: str, news_json: str) -> str:
     return BRIEFING_PROMPT.format(holdings_desc=holdings_desc, news_json=news_json)
 
 
+def _sanitize_for_json(text: str) -> str:
+    """修复截断的 Unicode 字符，确保 JSON 可解析。"""
+    if not text:
+        return text
+    # 1. 若为 bytes 则按 UTF-8 解码（忽略无效字节）
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", errors="ignore")
+    # 2. 移除 U+FFFD（替换字符），常由截断的多字节序列产生
+    text = text.replace("\uFFFD", "")
+    # 3. 移除其他可能破坏 JSON 的控制字符（保留 \n \t）
+    text = "".join(c for c in text if c in "\n\t\r" or (ord(c) >= 32 and ord(c) != 127))
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -147,10 +161,35 @@ def analyze(
         lines = clean.split("\n")
         lines = [l for l in lines if not l.strip().startswith("```")]
         clean = "\n".join(lines)
+
+    # 修复截断的 Unicode：移除 U+FFFD 及无效 UTF-8，避免 json.loads 失败
+    clean = _sanitize_for_json(clean)
+
+    # 多种尝试解析 JSON
     try:
         briefing = json.loads(clean)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as e:
+        # 尝试提取 JSON 对象（处理可能的尾部垃圾字符）
+        import re
+        json_match = re.search(r'\{.*\}', clean, re.DOTALL)
+        if json_match:
+            extracted = _sanitize_for_json(json_match.group())
+            try:
+                briefing = json.loads(extracted)
+            except json.JSONDecodeError:
+                # 尝试修复常见问题：截断的 JSON
+                partial = extracted
+                # 计算括号平衡，尝试补全
+                open_braces = partial.count('{') - partial.count('}')
+                open_brackets = partial.count('[') - partial.count(']')
+                if open_braces > 0 or open_brackets > 0:
+                    # 截断的 JSON，尝试补全
+                    fix = partial.rstrip(',\n ')
+                    fix += ']' * open_brackets + '}' * open_braces
+                    try:
+                        briefing = json.loads(fix)
+                    except json.JSONDecodeError:
+                        print(f"[Analyst] JSON 解析失败，尝试修复后仍失败: {str(e)[:100]}")
 
     result = {
         "analysis_time": datetime.now(CST).isoformat(),

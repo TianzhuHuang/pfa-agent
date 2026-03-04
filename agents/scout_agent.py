@@ -75,7 +75,8 @@ def _fetch_eastmoney(keyword: str, page_size: int = 20) -> List[Dict]:
     params = {"cb": "jQuery", "param": json.dumps(param_payload, ensure_ascii=False)}
     try:
         resp = requests.get(EASTMONEY_SEARCH_URL, params=params,
-                            headers=EASTMONEY_HEADERS, timeout=15)
+                            headers=EASTMONEY_HEADERS, timeout=15,
+                            proxies={"http": None, "https": None})
         resp.raise_for_status()
         text = resp.text
         data = json.loads(text[text.index("(") + 1 : text.rindex(")")])
@@ -162,6 +163,7 @@ def _fetch_wallstreetcn(limit: int = 20) -> List[FeedItem]:
             WALLSTREETCN_URL,
             params={"channel": "global-channel", "limit": limit},
             headers={"User-Agent": "Mozilla/5.0"}, timeout=10,
+            proxies={"http": None, "https": None},
         )
         resp.raise_for_status()
         data = resp.json()
@@ -197,11 +199,27 @@ def _fetch_wallstreetcn(limit: int = 20) -> List[FeedItem]:
 def _fetch_rss(url: str, feed_name: str, holdings: List[Dict]) -> List[FeedItem]:
     """Fetch and parse an RSS feed, matching entries to holdings."""
     import feedparser as fp
+    import os
     now_iso = datetime.now(CST).isoformat()
+    # 临时禁用代理，避免 feedparser 走系统代理导致超时
+    old_http = os.environ.pop("http_proxy", None)
+    old_https = os.environ.pop("https_proxy", None)
+    old_HTTP = os.environ.pop("HTTP_PROXY", None)
+    old_HTTPS = os.environ.pop("HTTPS_PROXY", None)
     try:
         feed = fp.parse(url)
     except Exception:
         return []
+    finally:
+        # 恢复代理设置
+        if old_http is not None:
+            os.environ["http_proxy"] = old_http
+        if old_https is not None:
+            os.environ["https_proxy"] = old_https
+        if old_HTTP is not None:
+            os.environ["HTTP_PROXY"] = old_HTTP
+        if old_HTTPS is not None:
+            os.environ["HTTPS_PROXY"] = old_HTTPS
     if feed.bozo and not feed.entries:
         return []
 

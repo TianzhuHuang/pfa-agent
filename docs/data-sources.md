@@ -65,6 +65,33 @@
 - **投研看板**: 按标的查看新闻 + 通义千问深度分析
 - **分析存档**: 按日期回溯历史分析记录
 
+### 3.6 多源价格 API（Phase 2 里程碑）
+
+持仓估值引擎 `pfa/portfolio_valuation.py` 的 `get_realtime_prices()` 聚合多源价格：
+
+| 资产类型 | market 值 | 数据源 | 模块 |
+|----------|-----------|--------|------|
+| A 股 | A | 东方财富 push2.eastmoney.com 为主，新浪 hq.sinajs.cn 为替补 | pfa/realtime_quote.py |
+| 港股 | HK | 新浪财经 | pfa/realtime_quote.py |
+| 美股 | US | 新浪财经 | pfa/realtime_quote.py |
+| 数字货币 | OT / CRYPTO / account_type=数字货币 | Binance 优先，CoinGecko 回退 | pfa/crypto_quote.py |
+| 新加坡股 | SGX | Yahoo Finance (T14.SI) | pfa/sgx_quote.py |
+
+- **Binance**: `https://api.binance.com/api/v3/ticker/price`，国内可能被墙，失败时回退 CoinGecko
+- **CoinGecko**: `https://api.coingecko.com/api/v3/simple/price`，支持主流币种
+- **Yahoo Finance**: `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}`，SGX 标的使用 `.SI` 后缀（如 T14.SI）
+- **代理**: 生产环境在国内时，可配置 `HTTP_PROXY` / `HTTPS_PROXY` 以访问 Binance、CoinGecko、Yahoo
+
+### 3.7 价格接口探测脚本（机房环境选源）
+
+阿里云等机房 IP 常被新浪等接口拦截，部署前可运行探测脚本评估各数据源可用性与速度：
+
+```bash
+python3 scripts/probe_price_apis.py
+```
+
+探测接口：腾讯财经、网易财经、新浪、东方财富、Yahoo、Binance、CoinGecko。输出按速度排序的成功接口，便于选择主/备数据源。
+
 ---
 
 ## 4. 数据可信度与噪音过滤（Phase 2 必含）

@@ -738,19 +738,57 @@ def run_full_pipeline_streaming(holdings: List[Dict], hours: int = 72, do_audit:
         _log("Secretary", msg)
 
     import time
+    import threading
     try:
         log("Scout → 开始抓取新闻...")
         yield {"type": "status", "message": "正在巡视全球财经情报，搜索相关新闻...", "stage": "scout_start", "color": "blue"}
 
-        scout_req = make_request("secretary", "scout", "fetch_all",
-                                 holdings=holdings, hours=hours)
-        scout_resp = scout_agent.handle(scout_req)
+        # 后台线程调用 Scout，主线程每 5 秒 yield 心跳，避免浏览器 SSE 连接超时断开
+        scout_resp_holder = [None]
+        scout_err_holder = [None]
 
-        if scout_resp.status != "ok":
-            log(f"Scout 失败: {scout_resp.error}")
+        def _run_scout():
+            try:
+                scout_req = make_request("secretary", "scout", "fetch_all",
+                                         holdings=holdings, hours=hours)
+                scout_resp_holder[0] = scout_agent.handle(scout_req)
+            except Exception as e:
+                scout_err_holder[0] = str(e)
+
+        scout_thread = threading.Thread(target=_run_scout, daemon=True)
+        scout_thread.start()
+
+        scout_heartbeat_msgs = [
+            "搜索东方财富资讯...",
+            "搜索华尔街见闻快讯...",
+            "抓取 RSS 订阅源...",
+            "汇总各渠道新闻...",
+            "筛选与持仓相关信息...",
+        ]
+        heartbeat_idx = 0
+        while scout_thread.is_alive():
+            time.sleep(5)
+            if scout_thread.is_alive():
+                msg = scout_heartbeat_msgs[heartbeat_idx % len(scout_heartbeat_msgs)]
+                yield {"type": "status", "message": msg, "stage": "scout_heartbeat", "color": "blue"}
+                heartbeat_idx += 1
+
+        scout_thread.join()
+
+        if scout_err_holder[0]:
+            log(f"Scout 异常: {scout_err_holder[0]}")
             result["status"] = "error"
-            result["error"] = scout_resp.error
-            yield {"type": "error", "error": scout_resp.error}
+            result["error"] = scout_err_holder[0]
+            yield {"type": "error", "error": scout_err_holder[0]}
+            return
+
+        scout_resp = scout_resp_holder[0]
+        if scout_resp is None or scout_resp.status != "ok":
+            err_msg = scout_resp.error if scout_resp else "Scout 返回空"
+            log(f"Scout 失败: {err_msg}")
+            result["status"] = "error"
+            result["error"] = err_msg
+            yield {"type": "error", "error": err_msg}
             return
 
         total = scout_resp.payload.get("total", 0)
@@ -775,7 +813,6 @@ def run_full_pipeline_streaming(holdings: List[Dict], hours: int = 72, do_audit:
         yield {"type": "status", "message": "正在根据你的持仓风险模型进行深度推演...", "stage": "analyst_start", "color": "purple"}
 
         # 后台线程调用 Analyst，主线程每 2 秒 yield 心跳，避免 Next.js 代理 30s 超时断开
-        import threading
         analyst_resp = [None]
         analyst_err = [None]
 

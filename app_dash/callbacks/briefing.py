@@ -50,7 +50,9 @@ def register_briefing_callbacks(app: dash.Dash):
             briefing = ar.get("briefing")
             if not briefing:
                 try:
-                    briefing = json.loads(ar.get("analysis", "{}"))
+                    raw = (ar.get("analysis") or "{}").replace("\uFFFD", "")
+                    raw = "".join(c for c in raw if c in "\n\t\r" or (ord(c) >= 32 and ord(c) != 127))
+                    briefing = json.loads(raw)
                 except (json.JSONDecodeError, TypeError):
                     briefing = None
             if not briefing:
