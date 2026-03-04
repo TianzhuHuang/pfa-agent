@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Portfolio API — 持仓数据与估值
 
@@ -18,6 +19,9 @@ from typing import Any, Dict, List, Optional
 
 router = APIRouter()
 
+# 避免 traceback 格式化时的 UTF-8 解码问题
+_DEFAULT_ACCOUNT = "\u9ed8\u8ba4"  # 默认
+
 
 class AddHoldingRequest(BaseModel):
     symbol: str
@@ -26,6 +30,8 @@ class AddHoldingRequest(BaseModel):
     account: str = "默认"
     new_account_name: str = ""
     new_account_currency: str = "CNY"
+    quantity: float = 0
+    cost_price: float = 0
 
 
 class AddHoldingsBulkRequest(BaseModel):
@@ -302,15 +308,17 @@ def add_holding(req: AddHoldingRequest):
     from datetime import datetime
     acc = _resolve_account(req.account, req.new_account_name)
     currency = (req.new_account_currency or "CNY").strip().upper()
-    if acc and acc != "默认":
+    if acc and acc != _DEFAULT_ACCOUNT:
         upsert_account(acc, broker="", currency=currency, account_type="股票")
     p = load_portfolio()
+    qty = max(0, float(req.quantity or 0))
+    cost = max(0, float(req.cost_price or 0))
     entry = {
         "symbol": req.symbol.strip(),
         "name": (req.name or "").strip(),
         "market": (req.market or "A")[:2] or "A",
-        "quantity": 0,
-        "cost_price": 0,
+        "quantity": qty,
+        "cost_price": cost,
         "source": "search",
         "account": acc,
         "updated_at": datetime.now().isoformat(),
@@ -378,7 +386,7 @@ def add_holdings_bulk(req: AddHoldingsBulkRequest):
     from datetime import datetime
     acc = _resolve_account(req.account, req.new_account_name)
     currency = (req.new_account_currency or "CNY").strip().upper()
-    if acc and acc != "默认":
+    if acc and acc != _DEFAULT_ACCOUNT:
         upsert_account(acc, broker="", currency=currency, account_type="股票", balance=req.available_balance)
     if acc and req.available_balance is not None and req.available_balance > 0:
         update_account(acc, balance=req.available_balance)
@@ -432,7 +440,7 @@ def trade_confirm(req: TradeConfirmRequest):
     if not sym:
         raise HTTPException(status_code=400, detail="symbol 必填")
     acc = (req.account or "默认").strip() or "默认"
-    if acc and acc != "默认":
+    if acc and acc != _DEFAULT_ACCOUNT:
         upsert_account(acc, broker="", currency="CNY", account_type="股票")
 
     p = load_portfolio()

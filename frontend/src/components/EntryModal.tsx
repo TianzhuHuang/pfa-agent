@@ -5,10 +5,23 @@ import { apiFetch, API_BASE } from "@/lib/api";
 
 const CURRENCIES = ["CNY", "USD", "HKD"];
 
+function marketToCurrency(market: string): string {
+  const m = (market || "A").slice(0, 2);
+  return { A: "¥", HK: "HK$", US: "$" }[m] ?? "¥";
+}
+
+function marketToExchangeLabel(market: string, marketRaw?: string): string {
+  const m = (market || "A").slice(0, 2);
+  if (marketRaw) return marketRaw;
+  return { A: "A股", HK: "港股", US: "美股" }[m] ?? "A股";
+}
+
 interface SearchResult {
   code: string;
   name: string;
   market: string;
+  market_raw?: string;
+  logo_url?: string;
 }
 
 interface HoldingItem {
@@ -46,6 +59,12 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
       ? accountList.map((a) => a.name).concat(["新建账户"])
       : ["默认", "新建账户"];
   const [adding, setAdding] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
+  const [searchPrice, setSearchPrice] = useState("");
+  const [searchQuantity, setSearchQuantity] = useState("");
+  const [searchDate, setSearchDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fxRates, setFxRates] = useState<Record<string, number>>({ CNY: 1, USD: 7.25, HKD: 0.92 });
+  const quantityInputRef = useRef<HTMLInputElement>(null);
 
   // OCR
   const [ocrStatus, setOcrStatus] = useState("");
@@ -86,9 +105,27 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
       setFileStatus("");
       setFileHoldings([]);
       setSearchError(null);
+      setSelectedItem(null);
+      setSearchPrice("");
+      setSearchQuantity("");
+      setSearchDate(new Date().toISOString().slice(0, 10));
       if (initialTab) setTab(initialTab);
+      apiFetch(`${API_BASE}/api/portfolio/fx`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.rates) setFxRates(d.rates);
+        })
+        .catch(() => {});
     }
   }, [open, loadAccounts, initialTab]);
+
+  useEffect(() => {
+    if (selectedItem) {
+      setSearchPrice("");
+      setSearchQuantity("");
+      quantityInputRef.current?.focus();
+    }
+  }, [selectedItem]);
 
   useEffect(() => {
     if (selectedAccount && selectedAccount !== "新建账户") {
@@ -117,11 +154,13 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  const handleAdd = async (item: SearchResult) => {
+  const handleAdd = async (item: SearchResult, qty?: number, price?: number) => {
     if (adding) return;
     setAdding(item.code);
     try {
       const acc = selectedAccount === "新建账户" ? (newAccountName || "").trim() || "默认" : selectedAccount;
+      const quantity = qty ?? (parseFloat(String(searchQuantity)) || 0);
+      const costPrice = price ?? (parseFloat(String(searchPrice)) || 0);
       const r = await apiFetch(`${API_BASE}/api/portfolio/holdings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -132,6 +171,8 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
           account: selectedAccount,
           new_account_name: newAccountName,
           new_account_currency: newAccountCurrency,
+          quantity,
+          cost_price: costPrice,
         }),
       });
       if (r.ok) {
@@ -340,13 +381,21 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
     { id: "file" as const, label: "文件导入" },
   ];
 
+  const selectedForAdd = selectedItem ?? null;
+  const priceVal = selectedForAdd ? (parseFloat(String(searchPrice)) || 0) : 0;
+  const qtyVal = selectedForAdd ? (parseFloat(String(searchQuantity)) || 0) : 0;
+  const market = selectedForAdd?.market || "A";
+  const ccy = market === "US" ? "USD" : market === "HK" ? "HKD" : "CNY";
+  const rateToCny = fxRates[ccy] ?? (ccy === "CNY" ? 1 : ccy === "USD" ? 7.25 : 0.92);
+  const estimatedCny = priceVal * qtyVal * rateToCny;
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md"
       onClick={onClose}
     >
       <div
-        className="w-[95%] max-w-[560px] max-h-[90vh] overflow-y-auto rounded-xl bg-[#0a0a0a] p-6 shadow-xl"
+        className="w-[95%] max-w-[560px] max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-[#0a0a0a]/95 p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -424,7 +473,7 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
             <div className="mb-2 text-sm text-[#888888]">搜索股票代码或名称</div>
             <input
               type="text"
-              placeholder="输入股票名或代码"
+              placeholder="搜索股票代码、名称或加密货币（如 AAPL, 700, BTC）"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="mb-3 w-full rounded-lg border border-white/10 bg-[#1a1a1a] px-4 py-3 text-sm text-white placeholder:text-[#888888]"
@@ -435,25 +484,113 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
                   {searchError || "未找到结果"}
                 </div>
               ) : (
-                searchResults.map((r) => (
-                  <div
-                    key={r.code}
-                    className="flex items-center justify-between rounded px-3 py-2 hover:bg-white/5"
-                  >
-                    <span className="text-sm text-white">
-                      {r.code} {r.name}
-                    </span>
-                    <button
-                      onClick={() => handleAdd(r)}
-                      disabled={adding === r.code}
-                      className="rounded bg-[#00e701] px-3 py-1.5 text-sm font-medium text-black disabled:opacity-50"
+                searchResults.map((r) => {
+                  const exLabel = marketToExchangeLabel(r.market, r.market_raw);
+                  const initials = (r.code || r.name || "?").slice(0, 2).toUpperCase();
+                  const isSelected = selectedItem?.code === r.code;
+                  return (
+                    <div
+                      key={r.code}
+                      onClick={() => setSelectedItem(r)}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/5 ${isSelected ? "bg-white/5 ring-1 ring-[#00e701]/50" : ""}`}
                     >
-                      {adding === r.code ? "添加中..." : "添加"}
-                    </button>
-                  </div>
-                ))
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#1a1a1a] text-xs font-medium text-[#888888]">
+                        {r.logo_url ? (
+                          <img src={r.logo_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          initials
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <div className="text-sm font-medium text-white">{r.name}</div>
+                        <div className="text-xs text-[#6b7280]">
+                          {r.code} · {exLabel}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedItem(r);
+                        }}
+                        className="text-xs text-[#00e701] hover:underline"
+                      >
+                        选择
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
+
+            {/* 选定后的交易表单 */}
+            {selectedItem && (
+              <div className="mt-4 rounded-lg border border-white/10 bg-[#111] p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="text-sm font-medium text-white">{selectedItem.name}</span>
+                  <span className="text-xs text-[#6b7280]">
+                    {selectedItem.code} · {marketToExchangeLabel(selectedItem.market, selectedItem.market_raw)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItem(null)}
+                    className="ml-auto text-xs text-[#888888] hover:text-white"
+                  >
+                    取消
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-[#888888]">成交单价</label>
+                    <div className="flex rounded-lg border border-white/10 bg-[#1a1a1a]">
+                      <span className="flex items-center px-3 text-sm text-[#888888]">
+                        {marketToCurrency(selectedItem.market)}
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        value={searchPrice}
+                        onChange={(e) => setSearchPrice(e.target.value)}
+                        className="flex-1 border-0 bg-transparent px-3 py-2 text-sm text-white placeholder:text-[#666] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-[#888888]">持仓数量</label>
+                    <input
+                      ref={quantityInputRef}
+                      type="number"
+                      step="0.0001"
+                      placeholder="0"
+                      value={searchQuantity}
+                      onChange={(e) => setSearchQuantity(e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#1a1a1a] px-4 py-2 text-sm text-white placeholder:text-[#666] focus:outline-none focus:ring-1 focus:ring-[#00e701]/50"
+                    />
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <label className="mb-1 block text-xs text-[#888888]">交易日期</label>
+                  <input
+                    type="date"
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-[#1a1a1a] px-4 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#00e701]/50"
+                  />
+                </div>
+                {priceVal > 0 && qtyVal > 0 && (
+                  <p className="mt-3 text-xs text-[#666]">
+                    按照当前汇率，约合本币：¥ {estimatedCny.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                )}
+                <button
+                  onClick={() => handleAdd(selectedItem)}
+                  disabled={adding === selectedItem.code}
+                  className="mt-4 w-full rounded-lg bg-[#00e701] px-5 py-2.5 text-sm font-medium text-black shadow-[0_0_12px_rgba(34,197,94,0.3)] transition-shadow hover:shadow-[0_0_16px_rgba(34,197,94,0.4)] disabled:opacity-50"
+                >
+                  {adding === selectedItem.code ? "添加中..." : "添加持仓"}
+                </button>
+              </div>
+            )}
           </>
         )}
 

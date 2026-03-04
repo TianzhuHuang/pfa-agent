@@ -25,13 +25,14 @@ def load_portfolio(user_id: Optional[str] = None) -> Dict[str, Any]:
     uid = _resolve_user_id(user_id)
     try:
         from backend.database.supabase_store import use_supabase, load_portfolio_db
-        if use_supabase():
+        if use_supabase() and uid not in ("admin", ""):
+            # Supabase user_id 需为 UUID，admin 回退到 JSON
             data = load_portfolio_db(uid)
             if not data.get("holdings") and not data.get("accounts"):
                 if _migrate_json_to_supabase(uid):
                     data = load_portfolio_db(uid)
             return data
-    except (ImportError, ValueError):
+    except (ImportError, ValueError, Exception):
         pass
     if _USE_DB:
         try:
@@ -69,7 +70,7 @@ def save_portfolio(data: Dict[str, Any], user_id: Optional[str] = None) -> None:
     uid = _resolve_user_id(user_id)
     try:
         from backend.database.supabase_store import use_supabase, save_portfolio_db
-        if use_supabase():
+        if use_supabase() and uid not in ("admin", ""):
             save_portfolio_db(data, uid)
             from pfa.portfolio_json import save_portfolio_json
             save_portfolio_json(data)
