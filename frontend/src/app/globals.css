@@ -75,3 +75,9 @@ body {
   0%, 100% { opacity: 0.2; transform: scale(1); }
   50% { opacity: 0.6; transform: scale(1.2); }
 }
+
+/* Onboarding 过渡文案淡入 */
+@keyframes pfa-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

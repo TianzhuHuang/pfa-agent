@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EntryModal } from "@/components/EntryModal";
+import { OnboardingView } from "@/components/OnboardingView";
 import { EditAccountsModal } from "@/components/EditAccountsModal";
 import { EditHoldingModal } from "@/components/EditHoldingModal";
 import { PortfolioCharts } from "@/components/PortfolioCharts";
@@ -58,6 +59,7 @@ export default function DashboardPage() {
   const [val, setVal] = useState<PortfolioVal | null>(null);
   const [loading, setLoading] = useState(true);
   const [entryOpen, setEntryOpen] = useState(false);
+  const [entryOpenTab, setEntryOpenTab] = useState<"search" | "ocr" | "file">("search");
   const [editAccountsOpen, setEditAccountsOpen] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [chartAccountFilter, setChartAccountFilter] = useState<string | null>("all");
@@ -399,6 +401,20 @@ export default function DashboardPage() {
       {/* Left: Dashboard */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
         <div className="mx-auto max-w-6xl">
+          {loading ? (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+              <div className="h-9 w-32 animate-pulse rounded bg-white/10" />
+              <div className="text-sm text-[#888888]">加载中...</div>
+            </div>
+          ) : totalV === 0 ? (
+            <OnboardingView
+              onOpenEntry={(tab) => {
+                setEntryOpenTab(tab);
+                setEntryOpen(true);
+              }}
+            />
+          ) : (
+            <>
           {/* HeaderStats: 两列玻璃仪表盘 */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row">
             {/* 左侧：资产看板 */}
@@ -713,7 +729,8 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
+            </>
+          )}
         </div>
       </div>
 
@@ -906,6 +923,7 @@ export default function DashboardPage() {
         open={entryOpen}
         onClose={() => setEntryOpen(false)}
         onAdded={refreshPortfolio}
+        initialTab={entryOpenTab}
       />
       <EditAccountsModal
         open={editAccountsOpen}

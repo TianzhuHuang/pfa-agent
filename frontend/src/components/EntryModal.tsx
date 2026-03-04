@@ -29,9 +29,10 @@ interface EntryModalProps {
   open: boolean;
   onClose: () => void;
   onAdded: () => void;
+  initialTab?: "search" | "ocr" | "file";
 }
 
-export function EntryModal({ open, onClose, onAdded }: EntryModalProps) {
+export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalProps) {
   const [tab, setTab] = useState<"search" | "ocr" | "file">("search");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -85,8 +86,9 @@ export function EntryModal({ open, onClose, onAdded }: EntryModalProps) {
       setFileStatus("");
       setFileHoldings([]);
       setSearchError(null);
+      if (initialTab) setTab(initialTab);
     }
-  }, [open, loadAccounts]);
+  }, [open, loadAccounts, initialTab]);
 
   useEffect(() => {
     if (selectedAccount && selectedAccount !== "新建账户") {
