@@ -38,9 +38,10 @@
 
 1. 打开 [Supabase Dashboard](https://supabase.com/dashboard) → 选择项目
 2. **Authentication** → **URL Configuration**：
-   - **Site URL**：`https://你的域名`（如 `https://pfa.example.com`）
-   - **Redirect URLs**：添加 `https://你的域名/**`、`https://你的域名/auth/callback`https://pfa.shareyourhealth.cn/
-3. 确认 `supabase/migrations/001_initial.sql` 已在 SQL Editor 中执行过
+   - **Site URL**：必须为生产域名（如 `https://pfa.shareyourhealth.cn`），**禁止**使用 `http://0.0.0.0:3000`
+   - **Redirect URLs**：添加 `https://你的域名/**`、`https://你的域名/auth/callback`
+3. **邮件模板**：若自定义 Confirm signup，确认 `{{ .ConfirmationURL }}` 作为主链接；自定义链接需用 `token_hash={{ .TokenHash }}&type=signup`，勿用 `code`
+4. 确认 `supabase/migrations/001_initial.sql` 已在 SQL Editor 中执行过
 
 ---
 
