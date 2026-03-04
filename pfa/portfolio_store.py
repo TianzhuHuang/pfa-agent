@@ -27,10 +27,8 @@ def load_portfolio(user_id: Optional[str] = None) -> Dict[str, Any]:
         from backend.database.supabase_store import use_supabase, load_portfolio_db
         if use_supabase() and uid not in ("admin", ""):
             # Supabase user_id 需为 UUID，admin 回退到 JSON
+            # 新用户无数据时直接返回空，禁止将本地 JSON 迁移到新用户（避免生产环境泄露测试数据）
             data = load_portfolio_db(uid)
-            if not data.get("holdings") and not data.get("accounts"):
-                if _migrate_json_to_supabase(uid):
-                    data = load_portfolio_db(uid)
             return data
     except (ImportError, ValueError, Exception):
         pass
@@ -38,7 +36,8 @@ def load_portfolio(user_id: Optional[str] = None) -> Dict[str, Any]:
         try:
             from backend.services.portfolio_service import load_portfolio_db, migrate_json_to_db
             data = load_portfolio_db(uid)
-            if not data.get("holdings") and not data.get("accounts"):
+            # 仅 admin 空数据时从 JSON 迁移，避免其他 user_id 误加载测试数据
+            if uid in ("admin", "") and not data.get("holdings") and not data.get("accounts"):
                 if migrate_json_to_db(uid):
                     data = load_portfolio_db(uid)
             return data
