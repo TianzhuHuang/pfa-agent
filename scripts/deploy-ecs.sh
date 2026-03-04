@@ -1,0 +1,31 @@
+#!/bin/bash
+# ECS 上一键部署脚本
+# 用法: cd /opt/pfa && bash scripts/deploy-ecs.sh
+# 解决「每次都报 NEXT_PUBLIC_SUPABASE_* 未设置」：显式用 --env-file 加载 .env
+
+set -e
+cd "$(dirname "$0")/.."
+
+if [ ! -f .env ]; then
+  echo "错误: .env 不存在"
+  echo "请先创建: cp .env.production.example .env && nano .env"
+  echo "必须填入: NEXT_PUBLIC_SUPABASE_URL、NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  exit 1
+fi
+
+if ! grep -qE '^NEXT_PUBLIC_SUPABASE_URL=.+' .env || ! grep -qE '^NEXT_PUBLIC_SUPABASE_ANON_KEY=.+' .env; then
+  echo "错误: .env 中缺少 NEXT_PUBLIC_SUPABASE_URL 或 NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  exit 1
+fi
+
+echo ">>> 构建（--env-file .env 确保变量注入）..."
+docker compose --env-file .env build --no-cache
+
+echo ">>> 启动..."
+docker compose up -d
+
+echo ">>> 验证..."
+sleep 3
+curl -s http://localhost:8000/health && echo ""
+curl -sI http://localhost:3000 | head -1
+echo "部署完成。"

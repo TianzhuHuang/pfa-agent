@@ -80,7 +80,8 @@ docker compose version
 在**本地**项目根目录执行（替换 `你的ECS公网IP`）：
 
 ```bash
-rsync -avz --exclude node_modules --exclude .next --exclude __pycache__ --exclude .git \
+# 务必排除 .env，避免用本地配置覆盖 ECS 上的生产 .env
+rsync -avz --exclude node_modules --exclude .next --exclude __pycache__ --exclude .git --exclude .env \
   . root@你的ECS公网IP:/opt/pfa/
 ```
 
@@ -99,6 +100,8 @@ nano .env
 chmod 600 .env
 ```
 
+> **若之前 rsync 未排除 .env**：可能已用本地空/错误配置覆盖了生产 .env。需重新创建：`cp .env.production.example .env && nano .env` 填入实际值。
+
 ---
 
 ## 第五步：构建并启动容器
@@ -108,8 +111,9 @@ chmod 600 .env
 ```bash
 cd /opt/pfa
 
-# 构建并启动（首次约 5–10 分钟）
-docker compose build --no-cache
+# 必须用 --env-file 显式加载 .env，否则 build args 为空导致构建失败
+# 若报错 "unable to open env file"，说明 .env 不存在，请先按 4.3 创建
+docker compose --env-file .env build --no-cache
 docker compose up -d
 
 # 验证
@@ -118,6 +122,8 @@ curl -I http://localhost:3000
 ```
 
 若返回 `{"status":"ok"}` 和 `200 OK`，说明容器正常。
+
+**一键部署**（推荐）：`bash scripts/deploy-ecs.sh`，会校验 .env 并用 `--env-file` 构建。
 
 ---
 

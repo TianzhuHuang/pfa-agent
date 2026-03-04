@@ -8,7 +8,7 @@
 
 ```bash
 cd /Users/huangtianzhu5746/PFA
-rsync -av --exclude node_modules --exclude .next --exclude __pycache__ --exclude .git \
+rsync -av --exclude node_modules --exclude .next --exclude __pycache__ --exclude .git --exclude .env \
   . root@47.110.250.228:/opt/pfa/
 ```
 
@@ -51,13 +51,15 @@ docker compose build --no-cache backend
 docker compose up -d
 ```
 
-或手动构建（若 .env 未被自动加载，可先 `set -a && source .env && set +a` 再执行）：
+或手动构建（**必须**用 `--env-file .env`，否则 build args 为空）：
 
 ```bash
 cd /opt/pfa
-docker compose build --no-cache
+docker compose --env-file .env build --no-cache
 docker compose up -d
 ```
+
+或一键部署：`bash scripts/deploy-ecs.sh`
 
 ### 5. 验证服务
 
