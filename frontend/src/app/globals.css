@@ -81,3 +81,19 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Loading 乌龟漫步：5 秒周期水平来回滑动 */
+@keyframes pfa-turtle-walk {
+  0%, 100% { transform: translateX(-24px); }
+  50% { transform: translateX(24px); }
+}
+@keyframes pfa-turtle-walk-compact {
+  0%, 100% { transform: translateX(-10px); }
+  50% { transform: translateX(10px); }
+}
+.pfa-turtle-walk-container svg {
+  animation: pfa-turtle-walk 5s ease-in-out infinite;
+}
+.pfa-turtle-walk-container.pfa-turtle-walk-compact svg {
+  animation: pfa-turtle-walk-compact 5s ease-in-out infinite;
+}

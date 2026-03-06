@@ -40,7 +40,7 @@
 2. **Authentication** → **URL Configuration**：
    - **Site URL**：必须为生产域名（如 `https://pfa.shareyourhealth.cn`），**禁止**使用 `http://0.0.0.0:3000`
    - **Redirect URLs**：添加 `https://你的域名/**`、`https://你的域名/auth/callback`
-3. **邮件模板**：若自定义 Confirm signup，确认 `{{ .ConfirmationURL }}` 作为主链接；自定义链接需用 `token_hash={{ .TokenHash }}&type=signup`，勿用 `code`
+3. **邮件确认**：若不需要邮箱验证，可在 **Providers** → **Email** 中关闭「Confirm email」，注册后即可直接登录
 4. 确认 `supabase/migrations/001_initial.sql` 已在 SQL Editor 中执行过
 
 ---
@@ -74,6 +74,8 @@ docker compose version
 ### 4.1 创建生产 .env
 
 参考项目根目录 `.env.production.example`，在 ECS 上创建 `/opt/pfa/.env`。Supabase 的 Key 可在 [Supabase Dashboard](https://supabase.com/dashboard) → Project Settings → API 中获取。
+
+**JWT 验证**：后端优先使用 JWKS（ES256）验证 JWT。若 ECS 访问 Supabase JWKS 失败（如网络限制），可配置 `SUPABASE_JWT_SECRET`（Supabase Dashboard → Settings → API → JWT Secret，长字符串）作为 HS256 回退。
 
 ### 4.2 上传代码到 ECS
 
@@ -201,3 +203,4 @@ certbot --nginx -d 你的域名
 | 502 Bad Gateway | 检查 `docker compose ps` 确认容器在运行；`curl localhost:3000` 和 `curl localhost:8000/health` |
 | 登录后跳转失败 | 检查 Supabase Redirect URLs 是否包含 `https://你的域名/**` |
 | CORS 报错 | 确认 `.env` 中 `CORS_ORIGINS` 包含 `https://你的域名` |
+| 添加持仓显示「数据保存失败」 | 1. 在 `.env` 添加 `PFA_DEBUG_ERRORS=1`，重启 backend，再次添加持仓，弹窗会显示具体错误<br>2. 检查 `docker logs pfa-backend-1 2>&1 | tail -30` 中的 `add_holding 失败` 或 `JWT` 相关日志<br>3. 测试 ECS 能否访问 JWKS：`curl -s "https://你的SUPABASE_URL/auth/v1/.well-known/jwks.json"`（若超时，JWKS 不可用，需配置 `SUPABASE_JWT_SECRET` 作为 HS256 回退；注意：若项目已迁移至 ECC，新 token 必须通过 JWKS 验证，Legacy Secret 仅对旧 token 有效） |

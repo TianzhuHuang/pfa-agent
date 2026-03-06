@@ -161,7 +161,7 @@ export function EditHoldingModal({ open, holding, onClose, onSaved }: EditHoldin
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        throw new Error(d.detail || `保存失败 ${r.status}`);
+        throw new Error((d as { error?: string; detail?: string }).error || (d as { detail?: string }).detail || "保存失败，请稍后重试");
       }
       onSaved();
       onClose();
@@ -192,7 +192,7 @@ export function EditHoldingModal({ open, holding, onClose, onSaved }: EditHoldin
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        throw new Error(d.detail || d.error || `删除失败 ${r.status}`);
+        throw new Error((d as { error?: string; detail?: string }).error || (d as { detail?: string }).detail || "保存失败，请稍后重试");
       }
       onSaved();
       onClose();

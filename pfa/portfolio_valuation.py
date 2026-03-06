@@ -248,7 +248,14 @@ def calculate_portfolio_value(
         cost_price = float(h.get("cost_price", 0) or 0)
         quantity = float(h.get("quantity", 0) or 0)
 
+        # 价格查找：HK 标的可能以 00700 或 00700.HK 存储，需兼容
         p = prices.get(sym, {})
+        if not p and market == "HK":
+            alt = str(sym or "").rstrip(".HK").rstrip(".hk").strip()
+            if alt and alt != sym:
+                p = prices.get(alt, {})
+            if not p and not str(sym or "").upper().endswith(".HK"):
+                p = prices.get(f"{sym}.HK", prices.get(f"{sym}.hk", {}))
         current = p.get("current")
         price_loaded = current is not None
         if current is not None:
@@ -281,26 +288,48 @@ def calculate_portfolio_value(
         by_account[account]["value"] += v_target
         by_account[account]["cost"] += cost_target
         by_account[account]["pnl"] += pnl_target
-        today_pct = p.get("percent")
-        today_pct_val = float(today_pct) if today_pct is not None else 0.0
-        today_pnl_target = (
-            round(value_local * (today_pct_val / 100) * fx_rate, 2)
-            if value_local is not None and not currency_error and today_pct_val
-            else 0.0
-        )
+        # 今日涨跌幅：仅当价格成功加载时才有意义
+        today_pct_raw = p.get("percent")
+        if price_loaded and today_pct_raw is not None:
+            today_pct_val: Optional[float] = float(today_pct_raw)
+            # 防御性校验：涨跌幅绝对值 > 50% 视为异常（如误用最高价 504 作为 percent）
+            if abs(today_pct_val) > 50:
+                today_pct_val = None
+                today_pnl_target = None
+            else:
+                today_pnl_target = (
+                    round(value_local * (today_pct_val / 100) * fx_rate, 2)
+                    if value_local is not None and not currency_error and today_pct_val
+                    else 0.0
+                )
+        else:
+            # 价格未加载时，今日涨跌幅为 None（前端显示 "—"）
+            today_pct_val = None
+            today_pnl_target = None
 
-        pnl_pct_val = ((current - cost_price) / cost_price * 100) if (price_loaded and current is not None and cost_price > 0) else 0.0
+        if sym in ("00700", "00700.HK"):
+            _log.info(
+                "[calculate_portfolio_value] 00700 symbol=%s p.percent=%s today_pct_raw=%s today_pct_val=%s",
+                sym, p.get("percent"), today_pct_raw, today_pct_val,
+            )
+
+        # 累计盈亏率：仅当价格成功加载时计算
+        pnl_pct_val: Optional[float] = (
+            ((current - cost_price) / cost_price * 100)
+            if (price_loaded and current is not None and cost_price > 0)
+            else None
+        )
 
         ho: Dict[str, Any] = {
             **h,
-            "current_price": current,
+            "current_price": current if price_loaded else None,
             "price_loaded": price_loaded,
-            "value_local": value_local,
+            "value_local": value_local if price_loaded else None,
             "currency": currency,
-            "value_cny": v_target,
+            "value_cny": v_target if price_loaded else None,
             "value_display": round(v_target, 2) if not currency_error and price_loaded else None,
             "currency_error": currency_error,
-            "pnl_cny": pnl_target,
+            "pnl_cny": pnl_target if price_loaded else None,
             "pnl_pct": pnl_pct_val,
             "today_pct": today_pct_val,
             "today_pnl": today_pnl_target,
@@ -318,8 +347,10 @@ def calculate_portfolio_value(
     for acct_data in by_account.values():
         acct_val = acct_data["value"]
         for ho in acct_data["holdings"]:
-            v = ho.get("value_cny", ho.get("value_local", 0))
-            ho["position_pct"] = (v / acct_val * 100) if acct_val > 0 else 0
+            v = ho.get("value_cny") or ho.get("value_local") or 0
+            if v is None:
+                v = 0
+            ho["position_pct"] = round((v / acct_val * 100), 1) if acct_val > 0 and v else 0
 
     raw_rates = get_fx_rates()
     fx_rates_rounded = {k: round(v, 4) for k, v in raw_rates.items()}

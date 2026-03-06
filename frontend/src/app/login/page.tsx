@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
-import { getURL } from "@/lib/supabase/url";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 const PHILOSOPHY = `如果乌龟能够吸取它那些最棒前辈的已经被实践所证明的洞见，有时候它也能跑赢那些追求独创性的兔子。我们赚钱，靠的是记住浅显的，而不是掌握深奥的。持续地试图别变成蠢货，久而久之，便能获得非常大的优势。`;
 
@@ -29,8 +29,6 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [registerSuccess, setRegisterSuccess] = useState(false);
-  const [registerEmail, setRegisterEmail] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
@@ -56,7 +54,12 @@ function LoginForm() {
       });
 
       if (error) {
-        setMessage({ type: "error", text: error.message });
+        const msg =
+          error.message?.toLowerCase().includes("invalid login credentials") ||
+          error.message?.toLowerCase().includes("invalid_credentials")
+            ? "邮箱或密码有误，请检查后重试。若尚未注册，请先点击「注册」"
+            : error.message;
+        setMessage({ type: "error", text: msg });
         setLoading(false);
         return;
       }
@@ -101,12 +104,9 @@ function LoginForm() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: trimmed,
         password,
-        options: {
-          emailRedirectTo: `${getURL()}/auth/callback?redirect=${encodeURIComponent(redirect)}`,
-        },
       });
 
       if (error) {
@@ -115,8 +115,18 @@ function LoginForm() {
         return;
       }
 
-      setRegisterEmail(trimmed);
-      setRegisterSuccess(true);
+      // 未开启邮件确认时，注册成功即已登录，直接跳转
+      if (data.session) {
+        router.push(redirect);
+        router.refresh();
+        return;
+      }
+
+      // 若开启了邮件确认（极少见），提示用户
+      setMessage({
+        type: "success",
+        text: "注册成功，请查收邮件并点击确认链接完成验证",
+      });
     } catch (err) {
       setMessage({
         type: "error",
@@ -188,37 +198,7 @@ function LoginForm() {
         {/* 毛玻璃卡片 */}
         <div className="rounded-2xl border border-[#222] bg-white/[0.03] p-6 backdrop-blur-md">
           <AnimatePresence mode="wait">
-            {registerSuccess ? (
-              <motion.div
-                key="register-success"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.25 }}
-                className="space-y-6"
-              >
-                <div className="flex flex-col items-center text-center">
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#22C55E]/20">
-                    <svg className="h-7 w-7 text-[#22C55E]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="mb-2 text-lg font-medium text-white">确认邮件已发送</h3>
-                  <p className="mb-1 text-sm leading-relaxed text-[#aaa]">
-                    我们已向 <span className="font-medium text-[#22C55E]">{registerEmail}</span> 发送确认链接
-                  </p>
-                  <p className="text-xs text-[#888]">请查收邮件（含垃圾箱）并点击链接完成注册</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setRegisterSuccess(false); setMode("login"); setMessage(null); }}
-                  className={btnPrimary}
-                >
-                  返回登录
-                </button>
-              </motion.div>
-            ) : (
-              <>
+            <>
                 {/* 登录 / 注册 Tab（底线滑动） */}
                 <div className="relative mb-5 flex">
                   <button
@@ -368,8 +348,7 @@ function LoginForm() {
             </div>
           )}
 
-              </>
-            )}
+            </>
           </AnimatePresence>
         </div>
 
@@ -388,7 +367,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-to-b from-[#0A0A0A] to-[#121212]"><span className="text-[#888888]">加载中...</span></div>}>
+    <Suspense fallback={<LoadingOverlay fullScreen />}>
       <LoginForm />
     </Suspense>
   );

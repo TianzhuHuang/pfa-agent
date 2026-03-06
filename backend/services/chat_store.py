@@ -27,6 +27,8 @@ def load_chat_history(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     try:
         from backend.database.supabase_store import use_supabase, load_chat_history as _load_sb
         if use_supabase():
+            if uid in ("admin", ""):
+                return []  # admin 无 Supabase 数据，避免 invalid uuid 错误
             return _load_sb(uid)
     except (ImportError, ValueError):
         pass
@@ -45,6 +47,8 @@ def save_chat_history(messages: List[Dict[str, Any]], user_id: Optional[str] = N
     try:
         from backend.database.supabase_store import use_supabase, save_chat_history as _save_sb
         if use_supabase():
+            if uid in ("admin", ""):
+                return  # no-op
             _save_sb(messages, uid)
             return
     except (ImportError, ValueError):

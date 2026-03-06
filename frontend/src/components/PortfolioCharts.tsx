@@ -35,13 +35,13 @@ interface HoldingForChart {
   symbol?: string;
   name?: string;
   account?: string;
-  value_cny?: number;
-  value_local?: number;
+  value_cny?: number | null;
+  value_local?: number | null;
   value_display?: number | null;
   currency_error?: boolean;
-  today_pnl?: number;
-  today_pct?: number;
-  pnl_cny?: number;
+  today_pnl?: number | null;
+  today_pct?: number | null;
+  pnl_cny?: number | null;
   currency?: string;
   is_cash?: boolean;
   accounts?: string[];

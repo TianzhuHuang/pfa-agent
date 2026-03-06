@@ -4,7 +4,10 @@ Supabase 数据层 — 当 SUPABASE_URL + SUPABASE_SERVICE_KEY 配置时使用
 与 portfolio_service、chat_service 相同接口，读写 Supabase PostgreSQL。
 """
 
+import logging
 import os
+
+_log = logging.getLogger("backend.database.supabase_store")
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -27,120 +30,166 @@ def use_supabase() -> bool:
 
 def load_portfolio_db(user_id: str = "admin") -> Dict[str, Any]:
     """从 Supabase 加载组合。"""
-    sb = _get_client()
     uid = user_id or "admin"
-
-    data = {
-        "version": "1.0",
-        "holdings": [],
-        "accounts": [],
-        "channels": {"rss_urls": [], "xueqiu_user_ids": [], "twitter_handles": []},
-        "preferences": {},
-    }
-
-    r = sb.table("holdings").select("*").eq("user_id", uid).execute()
-    for row in r.data or []:
-        ho = {
-            "symbol": row.get("symbol", ""),
-            "name": row.get("name") or "",
-            "market": row.get("market") or "A",
-            "quantity": float(row.get("quantity", 0) or 0),
-            "cost_price": float(row["cost_price"]) if row.get("cost_price") is not None else None,
-            "currency": row.get("currency"),
-            "exchange": row.get("exchange"),
-            "account": row.get("account") or "默认",
-            "source": row.get("source") or "manual",
-            "position_pct": float(row["position_pct"]) if row.get("position_pct") is not None else None,
-            "memo_history": row.get("memo_history") or [],
-            "updated_at": row.get("updated_at"),
+    try:
+        sb = _get_client()
+        data = {
+            "version": "1.0",
+            "holdings": [],
+            "accounts": [],
+            "channels": {"rss_urls": [], "xueqiu_user_ids": [], "twitter_handles": []},
+            "preferences": {},
         }
-        if row.get("ocr_confirmed") is not None:
-            ho["ocr_confirmed"] = bool(row["ocr_confirmed"])
-        if row.get("price_deviation_warn") is not None:
-            ho["price_deviation_warn"] = bool(row["price_deviation_warn"])
-        data["holdings"].append(ho)
+        r = sb.table("holdings").select("*").eq("user_id", uid).execute()
+        for row in r.data or []:
+            ho = {
+                "symbol": row.get("symbol", ""),
+                "name": row.get("name") or "",
+                "market": row.get("market") or "A",
+                "quantity": float(row.get("quantity", 0) or 0),
+                "cost_price": float(row["cost_price"]) if row.get("cost_price") is not None else None,
+                "currency": row.get("currency"),
+                "exchange": row.get("exchange"),
+                "account": row.get("account") or "默认",
+                "source": row.get("source") or "manual",
+                "position_pct": float(row["position_pct"]) if row.get("position_pct") is not None else None,
+                "memo_history": row.get("memo_history") or [],
+                "updated_at": row.get("updated_at"),
+            }
+            if row.get("ocr_confirmed") is not None:
+                ho["ocr_confirmed"] = bool(row["ocr_confirmed"])
+            if row.get("price_deviation_warn") is not None:
+                ho["price_deviation_warn"] = bool(row["price_deviation_warn"])
+            data["holdings"].append(ho)
 
-    r = sb.table("accounts").select("*").eq("user_id", uid).execute()
-    for row in r.data or []:
-        data["accounts"].append({
-            "id": row.get("account_id", ""),
-            "name": row.get("name", ""),
-            "base_currency": row.get("base_currency") or "CNY",
-            "broker": row.get("broker") or "",
-            "account_type": row.get("account_type") or "股票",
-            "balance": float(row.get("balance", 0) or 0),
-            "created_at": row.get("created_at"),
-            "updated_at": row.get("updated_at"),
-        })
+        r = sb.table("accounts").select("*").eq("user_id", uid).execute()
+        for row in r.data or []:
+            data["accounts"].append({
+                "id": row.get("account_id", ""),
+                "name": row.get("name", ""),
+                "base_currency": row.get("base_currency") or "CNY",
+                "broker": row.get("broker") or "",
+                "account_type": row.get("account_type") or "股票",
+                "balance": float(row.get("balance", 0) or 0),
+                "created_at": row.get("created_at"),
+                "updated_at": row.get("updated_at"),
+            })
 
-    r = sb.table("portfolio_meta").select("*").eq("user_id", uid).execute()
-    for row in r.data or []:
-        if row.get("meta_key") == "channels" and row.get("meta_value"):
-            data["channels"] = row["meta_value"]
-        elif row.get("meta_key") == "preferences" and row.get("meta_value"):
-            data["preferences"] = row["meta_value"]
+        # 新用户首次加载时 accounts 为空，自动创建默认账户（注册后 Table Editor 可见）
+        if not data["accounts"]:
+            try:
+                sb.table("accounts").insert({
+                    "user_id": uid,
+                    "account_id": "默认",
+                    "name": "默认",
+                    "base_currency": "CNY",
+                    "broker": None,
+                    "account_type": "股票",
+                    "balance": 0,
+                }).execute()
+                data["accounts"].append({
+                    "id": "默认",
+                    "name": "默认",
+                    "base_currency": "CNY",
+                    "broker": "",
+                    "account_type": "股票",
+                    "balance": 0,
+                    "created_at": None,
+                    "updated_at": None,
+                })
+            except Exception as e:
+                err = str(e).lower()
+                if "duplicate" in err or "unique" in err:
+                    # 并发插入成功，重新查询
+                    r2 = sb.table("accounts").select("*").eq("user_id", uid).execute()
+                    for row in r2.data or []:
+                        data["accounts"].append({
+                            "id": row.get("account_id", ""),
+                            "name": row.get("name", ""),
+                            "base_currency": row.get("base_currency") or "CNY",
+                            "broker": row.get("broker") or "",
+                            "account_type": row.get("account_type") or "股票",
+                            "balance": float(row.get("balance", 0) or 0),
+                            "created_at": row.get("created_at"),
+                            "updated_at": row.get("updated_at"),
+                        })
+                else:
+                    _log.warning("Supabase ensure_default_account failed user_id=%s: %s", uid, e)
 
-    return data
+        r = sb.table("portfolio_meta").select("*").eq("user_id", uid).execute()
+        for row in r.data or []:
+            if row.get("meta_key") == "channels" and row.get("meta_value"):
+                data["channels"] = row["meta_value"]
+            elif row.get("meta_key") == "preferences" and row.get("meta_value"):
+                data["preferences"] = row["meta_value"]
+
+        return data
+    except Exception as e:
+        _log.warning("Supabase load_portfolio_db failed user_id=%s: %s", uid, e)
+        raise
 
 
 def save_portfolio_db(data: Dict[str, Any], user_id: str = "admin") -> None:
     """保存组合到 Supabase。"""
-    sb = _get_client()
     uid = user_id or "admin"
+    try:
+        sb = _get_client()
+        sb.table("holdings").delete().eq("user_id", uid).execute()
+        sb.table("accounts").delete().eq("user_id", uid).execute()
+        sb.table("portfolio_meta").delete().eq("user_id", uid).execute()
 
-    sb.table("holdings").delete().eq("user_id", uid).execute()
-    sb.table("accounts").delete().eq("user_id", uid).execute()
-    sb.table("portfolio_meta").delete().eq("user_id", uid).execute()
+        for h in data.get("holdings", []):
+            sym = str(h.get("symbol", "")).strip()
+            if not sym:
+                continue
+            ins = {
+                "user_id": uid,
+                "symbol": sym,
+                "name": str(h.get("name", "")).strip() or None,
+                "market": str(h.get("market", "A"))[:2] or "A",
+                "quantity": float(h.get("quantity", 0) or 0),
+                "cost_price": float(h["cost_price"]) if h.get("cost_price") is not None else None,
+                "currency": h.get("currency"),
+                "exchange": h.get("exchange"),
+                "account": str(h.get("account", "默认")).strip() or "默认",
+                "source": str(h.get("source", "manual")).strip() or "manual",
+                "position_pct": float(h["position_pct"]) if h.get("position_pct") is not None else None,
+                "memo_history": h.get("memo_history"),
+            }
+            if h.get("ocr_confirmed") is not None:
+                ins["ocr_confirmed"] = bool(h["ocr_confirmed"])
+            if h.get("price_deviation_warn") is not None:
+                ins["price_deviation_warn"] = bool(h["price_deviation_warn"])
+            sb.table("holdings").insert(ins).execute()
 
-    for h in data.get("holdings", []):
-        sym = str(h.get("symbol", "")).strip()
-        if not sym:
-            continue
-        ins = {
-            "user_id": uid,
-            "symbol": sym,
-            "name": str(h.get("name", "")).strip() or None,
-            "market": str(h.get("market", "A"))[:2] or "A",
-            "quantity": float(h.get("quantity", 0) or 0),
-            "cost_price": float(h["cost_price"]) if h.get("cost_price") is not None else None,
-            "currency": h.get("currency"),
-            "exchange": h.get("exchange"),
-            "account": str(h.get("account", "默认")).strip() or "默认",
-            "source": str(h.get("source", "manual")).strip() or "manual",
-            "position_pct": float(h["position_pct"]) if h.get("position_pct") is not None else None,
-            "memo_history": h.get("memo_history"),
-        }
-        if h.get("ocr_confirmed") is not None:
-            ins["ocr_confirmed"] = bool(h["ocr_confirmed"])
-        if h.get("price_deviation_warn") is not None:
-            ins["price_deviation_warn"] = bool(h["price_deviation_warn"])
-        sb.table("holdings").insert(ins).execute()
+        for a in data.get("accounts", []):
+            aid = str(a.get("id", a.get("name", ""))).strip()
+            if not aid:
+                continue
+            sb.table("accounts").insert({
+                "user_id": uid,
+                "account_id": aid,
+                "name": str(a.get("name", aid)).strip(),
+                "base_currency": str(a.get("base_currency", a.get("currency", "CNY"))).strip().upper() or "CNY",
+                "broker": str(a.get("broker", "")).strip() or None,
+                "account_type": str(a.get("account_type", "股票")).strip() or "股票",
+                "balance": float(a.get("balance", 0) or 0),
+            }).execute()
 
-    for a in data.get("accounts", []):
-        aid = str(a.get("id", a.get("name", ""))).strip()
-        if not aid:
-            continue
-        sb.table("accounts").insert({
-            "user_id": uid,
-            "account_id": aid,
-            "name": str(a.get("name", aid)).strip(),
-            "base_currency": str(a.get("base_currency", a.get("currency", "CNY"))).strip().upper() or "CNY",
-            "broker": str(a.get("broker", "")).strip() or None,
-            "account_type": str(a.get("account_type", "股票")).strip() or "股票",
-            "balance": float(a.get("balance", 0) or 0),
-        }).execute()
-
-    ch = data.get("channels", {})
-    pref = data.get("preferences", {})
-    if ch or pref:
-        for meta_key, meta_value in [("channels", ch), ("preferences", pref)]:
-            if meta_value:
-                sb.table("portfolio_meta").delete().eq("user_id", uid).eq("meta_key", meta_key).execute()
-                sb.table("portfolio_meta").insert({
-                    "user_id": uid,
-                    "meta_key": meta_key,
-                    "meta_value": meta_value,
-                }).execute()
+        ch = data.get("channels", {})
+        pref = data.get("preferences", {})
+        if ch or pref:
+            for meta_key, meta_value in [("channels", ch), ("preferences", pref)]:
+                if meta_value:
+                    sb.table("portfolio_meta").delete().eq("user_id", uid).eq("meta_key", meta_key).execute()
+                    sb.table("portfolio_meta").insert({
+                        "user_id": uid,
+                        "meta_key": meta_key,
+                        "meta_value": meta_value,
+                    }).execute()
+    except Exception as e:
+        _log.warning("Supabase save_portfolio_db failed user_id=%s: %s", uid, e)
+        raise
 
 
 def load_chat_history(user_id: str = "admin") -> List[Dict[str, Any]]:
@@ -266,8 +315,10 @@ def _default_data_sources() -> dict:
 
 def get_data_sources(user_id: str = "admin") -> dict:
     """从 user_settings 加载数据源配置。"""
-    sb = _get_client()
     uid = user_id or "admin"
+    if uid in ("admin", ""):
+        return _default_data_sources()  # admin 非 UUID，避免 invalid uuid 错误
+    sb = _get_client()
     r = sb.table("user_settings").select("data_sources").eq("user_id", uid).execute()
     if r.data and len(r.data) > 0 and r.data[0].get("data_sources"):
         out = _default_data_sources()
@@ -278,8 +329,10 @@ def get_data_sources(user_id: str = "admin") -> dict:
 
 def save_data_sources(sources: dict, user_id: str = "admin") -> None:
     """保存数据源配置到 user_settings。"""
-    sb = _get_client()
     uid = user_id or "admin"
+    if uid in ("admin", ""):
+        return  # no-op
+    sb = _get_client()
     sb.table("user_settings").upsert(
         {"user_id": uid, "data_sources": sources},
         on_conflict="user_id",
@@ -288,8 +341,10 @@ def save_data_sources(sources: dict, user_id: str = "admin") -> None:
 
 def get_briefing_by_id(report_id, user_id: str = "admin") -> Optional[dict]:
     """按 ID 获取单条晨报。"""
-    sb = _get_client()
     uid = user_id or "admin"
+    if uid in ("admin", ""):
+        return None
+    sb = _get_client()
     r = sb.table("briefing_reports").select("*").eq("id", report_id).eq("user_id", uid).execute()
     if r.data and len(r.data) > 0:
         row = r.data[0]

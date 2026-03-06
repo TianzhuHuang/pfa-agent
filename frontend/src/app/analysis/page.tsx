@@ -21,6 +21,7 @@ import {
 import { apiFetch, API_BASE } from "@/lib/api";
 import { useDisplayCurrency, currencySymbol } from "@/contexts/DisplayCurrencyContext";
 import { CurrencyDropdown } from "@/components/CurrencyDropdown";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 const CHART_COLORS = ["#1976d2", "#2e7d32", "#ed6c02", "#7b1fa2", "#00838f"];
 const MARKET_LABELS: Record<string, string> = { A: "A股", HK: "港股", US: "美股", OTHER: "其他" };
@@ -90,7 +91,7 @@ export default function AnalysisPage() {
 
         {loading ? (
           <div className="flex h-64 items-center justify-center">
-            <div className="h-8 w-32 animate-pulse rounded bg-white/10" />
+            <LoadingOverlay fullScreen={false} />
           </div>
         ) : !val?.by_account || Object.keys(val.by_account).length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 py-20">

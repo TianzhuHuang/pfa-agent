@@ -21,7 +21,7 @@ rsync -av --exclude node_modules --exclude .next --exclude __pycache__ --exclude
 - **Authentication** → **URL Configuration**：
   - **Site URL**：`https://pfa.shareyourhealth.cn`（必须为生产域名，禁止 0.0.0.0 或 localhost）
   - **Redirect URLs**：包含 `https://pfa.shareyourhealth.cn/**` 和 `https://pfa.shareyourhealth.cn/auth/callback`
-- **邮件模板**：Confirm signup 仅保留 `{{ .ConfirmationURL }}` 作为主链接，移除或修正 mail2（若自定义链接需用 `token_hash` 和 `type`，勿用 `code`）
+- **邮件确认**：若不需要邮箱验证，可在 **Authentication** → **Providers** → **Email** 中关闭「Confirm email」，注册后即可直接登录
 
 ### 3. 确认 ECS 环境变量（必做）
 
@@ -78,28 +78,24 @@ curl -I https://pfa.shareyourhealth.cn
 
 ## 测试流程
 
-### 6. 注册流程
+### 6. 注册流程（无需邮件确认）
 
 1. 打开 https://pfa.shareyourhealth.cn/login
 2. 切换到「注册」Tab
-3. 输入邮箱（建议使用未注册过的新邮箱）、密码（至少 6 位）、确认密码
+3. 输入邮箱、密码（至少 6 位）、确认密码
 4. 点击「注册」
-5. **预期**：显示「确认邮件已发送至 [email]」卡片，卡片有「返回登录」按钮
-6. 查收邮件（含垃圾箱），点击确认链接
-7. **预期**：跳转到 `https://pfa.shareyourhealth.cn` 或 `/`，且已登录（**不应**跳转到 0.0.0.0 或 localhost）
+5. **预期**：注册成功即已登录，自动跳转到首页
 
 ### 7. 登录流程
 
 1. 打开 https://pfa.shareyourhealth.cn/login
-2. 输入已确认的邮箱和密码
+2. 输入邮箱和密码
 3. 点击「登录」
 4. **预期**：跳转到首页，已登录
 
 ### 8. 异常情况检查
 
-- 若确认链接跳转到 `0.0.0.0` 或 `otp_expired`：检查 Supabase Site URL、Redirect URLs，以及 `.env` 中的 `NEXT_PUBLIC_SITE_URL`
-- 若点击确认后页面空白：检查浏览器控制台和 Network，确认 `/auth/callback` 是否返回 200 或 302
-- 若登录失败：检查 Supabase Dashboard → Authentication → Users 中该用户是否已确认（email confirmed）
+- 若登录失败：检查 Supabase Dashboard → Authentication → Users 中该用户是否存在
 
 ---
 

@@ -8,6 +8,7 @@ import { apiFetch, API_BASE } from "@/lib/api";
 import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
 import { useColorScheme } from "@/contexts/ColorSchemeContext";
 import { CurrencyDropdown } from "@/components/CurrencyDropdown";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { isTradingHours } from "@/lib/tradingHours";
 import { DETAIL_REFRESH_INTERVAL } from "@/lib/refreshConstants";
@@ -421,11 +422,7 @@ export default function StockDetailPage() {
   }
 
   if (loading && !val) {
-    return (
-      <div className="mx-auto max-w-3xl p-6">
-        <div className="h-8 w-48 animate-pulse rounded bg-white/10" />
-      </div>
-    );
+    return <LoadingOverlay fullScreen />;
   }
 
   if (!primaryHolding) {
@@ -592,7 +589,9 @@ export default function StockDetailPage() {
                 </button>
               </div>
               {feedLoading ? (
-                <div className="py-8 text-center text-sm text-[#666]">加载中...</div>
+                <div className="flex min-h-[120px] items-center justify-center py-8">
+                  <LoadingOverlay fullScreen={false} compact />
+                </div>
               ) : feedItems.length === 0 ? (
                 <p className="py-6 text-center text-sm text-[#666]">
                   暂无新闻。点击「刷新数据」抓取。
@@ -632,8 +631,8 @@ export default function StockDetailPage() {
             </div>
           </div>
 
-          {/* 右栏：Ask PFA Live — 风格对齐首页，会话管理 */}
-          <div className="rounded-lg bg-[#1A1A1A] p-4 flex flex-col">
+          {/* 右栏：Ask PFA Live — 固定高度，输入框始终可见 */}
+          <div className="rounded-lg bg-[#1A1A1A] p-4 flex flex-col h-[calc(100vh-280px)] min-h-[500px] max-h-[700px] sticky top-20">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-white">Ask PFA Live</span>
@@ -663,7 +662,7 @@ export default function StockDetailPage() {
             <p className="mb-3 text-xs text-[#888]">基于 {name} 最新新闻，向 AI 提问</p>
             <div
               ref={tickerScrollRef}
-              className="mb-4 h-[320px] overflow-y-auto space-y-4 scroll-smooth"
+              className="mb-4 flex-1 overflow-y-auto space-y-4 scroll-smooth"
             >
               {tickerMessages.length === 0 && !tickerStreaming && (
                 <div className="py-4">
@@ -768,7 +767,9 @@ export default function StockDetailPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-3">
                   {historyLoading ? (
-                    <div className="py-8 text-center text-sm text-[#666]">加载中...</div>
+                    <div className="flex min-h-[100px] items-center justify-center py-8">
+                      <LoadingOverlay fullScreen={false} compact />
+                    </div>
                   ) : historySessions.length === 0 ? (
                     <div className="py-8 text-center text-sm text-[#666]">暂无历史对话</div>
                   ) : (

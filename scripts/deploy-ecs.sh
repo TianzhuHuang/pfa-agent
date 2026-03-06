@@ -13,13 +13,23 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-if ! grep -qE '^NEXT_PUBLIC_SUPABASE_URL=.+' .env || ! grep -qE '^NEXT_PUBLIC_SUPABASE_ANON_KEY=.+' .env; then
-  echo "错误: .env 中缺少 NEXT_PUBLIC_SUPABASE_URL 或 NEXT_PUBLIC_SUPABASE_ANON_KEY"
+# NEXT_PUBLIC_SUPABASE_URL 可用 SUPABASE_URL 替代；anon key 必须其一
+if ! grep -qE '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_URL)=.+' .env; then
+  echo "错误: .env 中缺少 SUPABASE_URL 或 NEXT_PUBLIC_SUPABASE_URL"
+  exit 1
+fi
+if ! grep -qE '^(NEXT_PUBLIC_SUPABASE_ANON_KEY|NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)=.+' .env; then
+  echo "错误: .env 中缺少 NEXT_PUBLIC_SUPABASE_ANON_KEY（Supabase Dashboard → Settings → API → anon public）"
   exit 1
 fi
 
 echo ">>> 构建（--env-file .env 确保变量注入，使用缓存加速）..."
 docker compose --env-file .env build
+
+# Supabase 已配置时，移除本地 JSON 避免误加载
+if grep -qE '^SUPABASE_SERVICE_KEY=.+' .env 2>/dev/null; then
+  rm -f config/my-portfolio.json
+fi
 
 echo ">>> 启动..."
 docker compose up -d

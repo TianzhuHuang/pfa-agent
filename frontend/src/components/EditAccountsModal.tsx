@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch, API_BASE } from "@/lib/api";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 const ACCOUNT_TYPES = ["股票", "债券", "数字货币", "其他"];
 
@@ -149,7 +150,7 @@ export function EditAccountsModal({ open, onClose, onUpdated }: EditAccountsModa
           </div>
         )}
         {loading ? (
-          <div className="py-8 text-center text-[#888888]">加载中...</div>
+          <LoadingOverlay fullScreen={false} text="稳扎稳打，数据正在搬运中..." />
         ) : accounts.length === 0 ? (
           <div className="py-8 text-center text-[#888888]">暂无账户，请先录入持仓</div>
         ) : (

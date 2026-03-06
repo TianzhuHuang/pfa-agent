@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 
@@ -130,8 +131,10 @@ def _get_valuation(display_currency: str = "CNY") -> Dict:
     for acct_data in val["by_account"].values():
         acct_val = acct_data["value"]
         for ho in acct_data["holdings"]:
-            v = ho.get("value_cny", ho.get("value_local", 0))
-            ho["position_pct"] = round((v / acct_val * 100), 1) if acct_val > 0 else 0
+            v = ho.get("value_cny") or ho.get("value_local") or 0
+            if v is None:
+                v = 0
+            ho["position_pct"] = round((v / acct_val * 100), 1) if acct_val > 0 and v else 0
 
     val["account_count"] = len(val["by_account"])
     return val
@@ -301,31 +304,80 @@ def _resolve_account(account: str, new_name: str, currency: str = "CNY") -> str:
     return (account or "默认").strip() or "默认"
 
 
+def _save_error_response(detail: str | None = None):
+    """返回 500。PFA_DEBUG_ERRORS=1 时显示实际错误（便于排查），否则显示通用提示。"""
+    import os
+    msg = "数据保存失败，请稍后重试"
+    if detail and os.environ.get("PFA_DEBUG_ERRORS", "").strip() == "1":
+        raw = str(detail)[:150].replace("\\", "/")
+        for p in ("/app/", "/opt/", "C:\\"):
+            if p in raw:
+                raw = raw.split(p)[-1]
+        msg = f"数据保存失败: {raw}"
+    return JSONResponse(status_code=500, content={"ok": False, "error": msg})
+
+
+def _auth_required_response():
+    return JSONResponse(status_code=401, content={"ok": False, "error": "登录已过期，请刷新页面后重试"})
+
+
 @router.post("/portfolio/holdings")
 def add_holding(req: AddHoldingRequest):
-    """添加单条持仓（智能搜索后添加）。"""
-    from agents.secretary_agent import load_portfolio, save_portfolio, upsert_account
-    from datetime import datetime
-    acc = _resolve_account(req.account, req.new_account_name)
-    currency = (req.new_account_currency or "CNY").strip().upper()
-    if acc and acc != _DEFAULT_ACCOUNT:
-        upsert_account(acc, broker="", currency=currency, account_type="股票")
-    p = load_portfolio()
-    qty = max(0, float(req.quantity or 0))
-    cost = max(0, float(req.cost_price or 0))
-    entry = {
-        "symbol": req.symbol.strip(),
-        "name": (req.name or "").strip(),
-        "market": (req.market or "A")[:2] or "A",
-        "quantity": qty,
-        "cost_price": cost,
-        "source": "search",
-        "account": acc,
-        "updated_at": datetime.now().isoformat(),
-    }
-    p.setdefault("holdings", []).append(entry)
-    save_portfolio(p)
-    return {"ok": True}
+    """添加单条持仓（智能搜索后添加）。同标的同账户已存在时合并数量与成本。"""
+    try:
+        from agents.secretary_agent import load_portfolio, save_portfolio, upsert_account
+        from pfa.symbol_utils import symbol_for_compare
+        from datetime import datetime
+        acc = _resolve_account(req.account, req.new_account_name)
+        currency = (req.new_account_currency or "CNY").strip().upper()
+        if acc and acc != _DEFAULT_ACCOUNT:
+            upsert_account(acc, broker="", currency=currency, account_type="股票")
+        p = load_portfolio()
+        holdings = p.setdefault("holdings", [])
+        sym = req.symbol.strip()
+        market = (req.market or "A")[:2] or "A"
+        sym_canon = symbol_for_compare(sym, market)
+        qty = max(0, float(req.quantity or 0))
+        cost = max(0, float(req.cost_price or 0))
+        now = datetime.now().isoformat()
+        for h in holdings:
+            h_sym = symbol_for_compare(str(h.get("symbol", "")).strip(), h.get("market", "A"))
+            if h_sym == sym_canon and str(h.get("account", "")).strip() == acc:
+                old_q = float(h.get("quantity", 0) or 0)
+                old_c = float(h.get("cost_price", 0) or 0)
+                new_q = old_q + qty
+                new_c = (old_c * old_q + cost * qty) / new_q if new_q > 0 else cost
+                h["quantity"] = new_q
+                h["cost_price"] = round(new_c, 4)
+                h["updated_at"] = now
+                if req.name and (req.name or "").strip():
+                    h["name"] = (req.name or "").strip()
+                save_portfolio(p)
+                return {"ok": True}
+        from pfa.symbol_utils import normalize_hk_symbol
+        stored_sym = normalize_hk_symbol(sym) if market == "HK" else sym
+        entry = {
+            "symbol": stored_sym,
+            "name": (req.name or "").strip(),
+            "market": (req.market or "A")[:2] or "A",
+            "quantity": qty,
+            "cost_price": cost,
+            "source": "search",
+            "account": acc,
+            "updated_at": now,
+        }
+        holdings.append(entry)
+        save_portfolio(p)
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        import logging
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        logging.getLogger("backend.api.portfolio").warning("add_holding 失败: %s", e)
+        return _save_error_response(str(e))
 
 
 class OcrRequest(BaseModel):
@@ -381,135 +433,189 @@ def _market_to_currency(market: str) -> str:
 @router.post("/portfolio/holdings/bulk")
 def add_holdings_bulk(req: AddHoldingsBulkRequest):
     """批量添加持仓（OCR 或文件导入后确认）。"""
-    from agents.secretary_agent import load_portfolio, save_portfolio, upsert_account, update_account, update_holdings_bulk
-    from pfa.symbol_utils import normalize_hk_symbol
-    from datetime import datetime
-    acc = _resolve_account(req.account, req.new_account_name)
-    currency = (req.new_account_currency or "CNY").strip().upper()
-    if acc and acc != _DEFAULT_ACCOUNT:
-        upsert_account(acc, broker="", currency=currency, account_type="股票", balance=req.available_balance)
-    if acc and req.available_balance is not None and req.available_balance > 0:
-        update_account(acc, balance=req.available_balance)
-    p = load_portfolio()
-    now = datetime.now().isoformat()
-    for h in req.holdings:
-        sym = str(h.get("symbol", "")).strip()
-        if not sym:
-            continue
-        e = dict(h)
-        e["market"] = str(e.get("market", "A"))[:2] or "A"
-        if e["market"] == "HK":
-            e["symbol"] = normalize_hk_symbol(sym)
-        else:
-            for suffix in (".HK", ".hk", ".SH", ".sh", ".SZ", ".sz"):
-                if sym.upper().endswith(suffix.upper()):
-                    sym = sym[: -len(suffix)]
+    try:
+        from agents.secretary_agent import load_portfolio, save_portfolio, upsert_account, update_account, update_holdings_bulk
+        from pfa.symbol_utils import normalize_hk_symbol, symbol_for_compare
+        from datetime import datetime
+        acc = _resolve_account(req.account, req.new_account_name)
+        currency = (req.new_account_currency or "CNY").strip().upper()
+        if acc and acc != _DEFAULT_ACCOUNT:
+            upsert_account(acc, broker="", currency=currency, account_type="股票", balance=req.available_balance)
+        if acc and req.available_balance is not None and req.available_balance > 0:
+            update_account(acc, balance=req.available_balance)
+        p = load_portfolio()
+        holdings = p.setdefault("holdings", [])
+        now = datetime.now().isoformat()
+        for h in req.holdings:
+            sym = str(h.get("symbol", "")).strip()
+            if not sym:
+                continue
+            e = dict(h)
+            e["market"] = str(e.get("market", "A"))[:2] or "A"
+            if e["market"] == "HK":
+                e["symbol"] = normalize_hk_symbol(sym)
+            else:
+                for suffix in (".HK", ".hk", ".SH", ".sh", ".SZ", ".sz"):
+                    if sym.upper().endswith(suffix.upper()):
+                        sym = sym[: -len(suffix)]
+                        break
+                e["symbol"] = sym
+            e.setdefault("name", "")
+            e["account"] = acc
+            e["updated_at"] = now
+            e.setdefault("source", "ocr")
+            if e.get("source") == "ocr":
+                e["ocr_confirmed"] = False
+            valid_cur = (e.get("currency") or "").strip().upper() in ("CNY", "USD", "HKD")
+            e["currency"] = (e.get("currency") or "").strip().upper() if valid_cur else _market_to_currency(e["market"])
+            if e.get("exchange"):
+                e["exchange"] = str(e.get("exchange", "")).strip()
+            for k in ("cost_price", "quantity"):
+                v = e.get(k)
+                if v is not None:
+                    try:
+                        e[k] = float(v)
+                    except (ValueError, TypeError):
+                        pass
+            merged = False
+            e_canon = symbol_for_compare(e["symbol"], e["market"])
+            for ex in holdings:
+                ex_canon = symbol_for_compare(str(ex.get("symbol", "")).strip(), ex.get("market", "A"))
+                if ex_canon == e_canon and str(ex.get("account", "")).strip() == acc:
+                    old_q = float(ex.get("quantity", 0) or 0)
+                    old_c = float(ex.get("cost_price", 0) or 0)
+                    add_q = float(e.get("quantity", 0) or 0)
+                    add_c = float(e.get("cost_price", 0) or 0)
+                    new_q = old_q + add_q
+                    new_c = (old_c * old_q + add_c * add_q) / new_q if new_q > 0 else add_c
+                    ex["quantity"] = new_q
+                    ex["cost_price"] = round(new_c, 4)
+                    ex["updated_at"] = now
+                    if e.get("name"):
+                        ex["name"] = e["name"]
+                    if "ocr_confirmed" in e:
+                        ex["ocr_confirmed"] = e["ocr_confirmed"]
+                    merged = True
                     break
-            e["symbol"] = sym
-        e.setdefault("name", "")
-        e["account"] = acc
-        e["updated_at"] = now
-        e.setdefault("source", "ocr")
-        if e.get("source") == "ocr":
-            e["ocr_confirmed"] = False
-        valid_cur = (e.get("currency") or "").strip().upper() in ("CNY", "USD", "HKD")
-        e["currency"] = (e.get("currency") or "").strip().upper() if valid_cur else _market_to_currency(e["market"])
-        if e.get("exchange"):
-            e["exchange"] = str(e.get("exchange", "")).strip()
-        for k in ("cost_price", "quantity"):
-            v = e.get(k)
-            if v is not None:
-                try:
-                    e[k] = float(v)
-                except (ValueError, TypeError):
-                    pass
-        p.setdefault("holdings", []).append(e)
-    update_holdings_bulk(p["holdings"])
-    save_portfolio(p)
-    return {"ok": True}
+            if not merged:
+                holdings.append(e)
+        update_holdings_bulk(holdings)
+        save_portfolio(p)
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        import logging
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        logging.getLogger("backend.api.portfolio").warning("add_holdings_bulk 失败: %s", e)
+        return _save_error_response(str(e))
 
 
 @router.post("/portfolio/trade/confirm")
 def trade_confirm(req: TradeConfirmRequest):
     """确认写入：用户点击「确认写入」后调用，真正更新持仓。"""
-    from agents.secretary_agent import load_portfolio, save_portfolio, update_holding, upsert_account
-    from fastapi import HTTPException
-    from datetime import datetime
+    try:
+        from agents.secretary_agent import load_portfolio, save_portfolio, update_holding, upsert_account
+        from pfa.symbol_utils import symbol_for_compare, normalize_hk_symbol
+        from datetime import datetime
 
-    sym = (req.symbol or "").strip()
-    if not sym:
-        raise HTTPException(status_code=400, detail="symbol 必填")
-    acc = (req.account or "默认").strip() or "默认"
-    if acc and acc != _DEFAULT_ACCOUNT:
-        upsert_account(acc, broker="", currency="CNY", account_type="股票")
+        sym = (req.symbol or "").strip()
+        if not sym:
+            raise HTTPException(status_code=400, detail="symbol 必填")
+        market = (req.market or "A")[:2] or "A"
+        sym_canon = symbol_for_compare(sym, market)
+        acc = (req.account or "默认").strip() or "默认"
+        if acc and acc != _DEFAULT_ACCOUNT:
+            upsert_account(acc, broker="", currency="CNY", account_type="股票")
 
-    p = load_portfolio()
-    holdings = p.get("holdings", [])
+        p = load_portfolio()
+        holdings = p.get("holdings", [])
 
-    if req.action == "add":
-        now = datetime.now().isoformat()
-        new_qty = float(req.quantity or 0)
-        new_cost = float(req.cost_price or 0)
-        # 若已有同标的同账户，则累加数量并更新成本价（加权平均），不新增一条
-        for h in p.get("holdings", []):
-            if str(h.get("symbol", "")).strip() == sym and str(h.get("account", "")).strip() == acc:
-                old_qty = float(h.get("quantity", 0) or 0)
-                old_cost = float(h.get("cost_price", 0) or 0)
-                total_qty = old_qty + new_qty
-                if total_qty > 0 and (old_cost > 0 or new_cost > 0):
-                    # 加权平均成本
-                    h["cost_price"] = round((old_qty * old_cost + new_qty * new_cost) / total_qty, 4)
-                elif new_cost > 0:
-                    h["cost_price"] = new_cost
-                h["quantity"] = total_qty
-                if req.name and (req.name or "").strip():
-                    h["name"] = (req.name or "").strip()
-                h["updated_at"] = now
-                save_portfolio(p)
-                return {"ok": True, "action": "update"}
-        # 无已有持仓，新增
-        entry = {
-            "symbol": sym,
-            "name": (req.name or "").strip(),
-            "market": (req.market or "A")[:2] or "A",
-            "quantity": new_qty,
-            "cost_price": new_cost,
-            "source": "ai_expert",
-            "account": acc,
-            "updated_at": now,
-        }
-        p.setdefault("holdings", []).append(entry)
-        save_portfolio(p)
-        return {"ok": True, "action": "add"}
-
-    if req.action == "update":
-        updated = update_holding(sym, acc, quantity=req.quantity, cost_price=req.cost_price, name=req.name or None)
-        if updated is None:
-            raise HTTPException(status_code=404, detail="未找到该持仓")
-        return {"ok": True, "action": "update"}
-
-    if req.action == "remove":
-        before = len(holdings)
-        p["holdings"] = [
-            h for h in holdings
-            if not (str(h.get("symbol", "")).strip() == sym and str(h.get("account", "")).strip() == acc)
-        ]
-        if len(p["holdings"]) < before:
+        if req.action == "add":
+            now = datetime.now().isoformat()
+            new_qty = float(req.quantity or 0)
+            new_cost = float(req.cost_price or 0)
+            # 若已有同标的同账户，则累加数量并更新成本价（加权平均），不新增一条
+            for h in p.get("holdings", []):
+                h_sym = symbol_for_compare(str(h.get("symbol", "")).strip(), h.get("market", "A"))
+                if h_sym == sym_canon and str(h.get("account", "")).strip() == acc:
+                    old_qty = float(h.get("quantity", 0) or 0)
+                    old_cost = float(h.get("cost_price", 0) or 0)
+                    total_qty = old_qty + new_qty
+                    if total_qty > 0 and (old_cost > 0 or new_cost > 0):
+                        # 加权平均成本
+                        h["cost_price"] = round((old_qty * old_cost + new_qty * new_cost) / total_qty, 4)
+                    elif new_cost > 0:
+                        h["cost_price"] = new_cost
+                    h["quantity"] = total_qty
+                    if req.name and (req.name or "").strip():
+                        h["name"] = (req.name or "").strip()
+                    h["updated_at"] = now
+                    save_portfolio(p)
+                    return {"ok": True, "action": "update"}
+            # 无已有持仓，新增
+            stored_sym = normalize_hk_symbol(sym) if market == "HK" else sym
+            entry = {
+                "symbol": stored_sym,
+                "name": (req.name or "").strip(),
+                "market": (req.market or "A")[:2] or "A",
+                "quantity": new_qty,
+                "cost_price": new_cost,
+                "source": "ai_expert",
+                "account": acc,
+                "updated_at": now,
+            }
+            p.setdefault("holdings", []).append(entry)
             save_portfolio(p)
-            return {"ok": True, "action": "remove"}
-        raise HTTPException(status_code=404, detail="未找到该持仓")
+            return {"ok": True, "action": "add"}
 
-    raise HTTPException(status_code=400, detail="action 必须是 add/update/remove")
+        if req.action == "update":
+            updated = update_holding(sym, acc, quantity=req.quantity, cost_price=req.cost_price, name=req.name or None)
+            if updated is None:
+                raise HTTPException(status_code=404, detail="未找到该持仓")
+            return {"ok": True, "action": "update"}
+
+        if req.action == "remove":
+            before = len(holdings)
+            p["holdings"] = [
+                h for h in holdings
+                if not (symbol_for_compare(str(h.get("symbol", "")).strip(), h.get("market", "A")) == sym_canon and str(h.get("account", "")).strip() == acc)
+            ]
+            if len(p["holdings"]) < before:
+                save_portfolio(p)
+                return {"ok": True, "action": "remove"}
+            raise HTTPException(status_code=404, detail="未找到该持仓")
+
+        raise HTTPException(status_code=400, detail="action 必须是 add/update/remove")
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        return _save_error_response()
 
 
 @router.post("/portfolio/clear")
 def clear_holdings():
-    """清空所有持仓（测试用）。"""
-    from agents.secretary_agent import load_portfolio, save_portfolio
-    p = load_portfolio()
-    p["holdings"] = []
-    save_portfolio(p)
-    return {"ok": True}
+    """清空所有持仓及账户余额（测试用）。"""
+    try:
+        from agents.secretary_agent import load_portfolio, save_portfolio
+        p = load_portfolio()
+        p["holdings"] = []
+        for acc in p.get("accounts", []):
+            acc["balance"] = 0
+        save_portfolio(p)
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        return _save_error_response()
 
 
 class HoldingUpdateBody(BaseModel):
@@ -535,47 +641,97 @@ class AccountUpdateBody(BaseModel):
 @router.patch("/portfolio/holdings")
 def update_holding(body: HoldingUpdateBody):
     """行级编辑：更新单条持仓的 quantity、cost_price、currency、exchange 等。支持 new_symbol 替换标的。"""
-    from agents.secretary_agent import update_holding as _update_holding
-    from fastapi import HTTPException
-    payload = body.model_dump(exclude_none=True)
-    symbol = payload.pop("symbol", "").strip()
-    account = payload.pop("account", "默认").strip() or "默认"
-    new_symbol = (payload.pop("new_symbol", "") or "").strip()
-    if not symbol:
-        raise HTTPException(status_code=400, detail="symbol 必填")
-    if "currency" in payload and payload.get("currency") not in ("CNY", "USD", "HKD"):
-        payload.pop("currency", None)
-    updated = _update_holding(symbol, account, new_symbol=new_symbol or None, **payload)
-    if updated is None:
-        raise HTTPException(status_code=404, detail="未找到该持仓")
-    return {"ok": True, "holding": updated}
+    try:
+        from agents.secretary_agent import update_holding as _update_holding
+        payload = body.model_dump(exclude_none=True)
+        symbol = payload.pop("symbol", "").strip()
+        account = payload.pop("account", "默认").strip() or "默认"
+        new_symbol = (payload.pop("new_symbol", "") or "").strip()
+        if not symbol:
+            raise HTTPException(status_code=400, detail="symbol 必填")
+        if "currency" in payload and payload.get("currency") not in ("CNY", "USD", "HKD"):
+            payload.pop("currency", None)
+        updated = _update_holding(symbol, account, new_symbol=new_symbol or None, **payload)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="未找到该持仓")
+        return {"ok": True, "holding": updated}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        return _save_error_response()
 
 
 @router.patch("/portfolio/accounts/{account_id}")
 def update_account(account_id: str, body: AccountUpdateBody):
     """更新账户：name, base_currency, broker, account_type, balance。若账户不在 accounts 中则创建（upsert）。"""
-    from agents.secretary_agent import update_account as _update_account, upsert_account
-    payload = body.model_dump(exclude_none=True)
-    acc = _update_account(account_id, **payload)
-    if acc is None:
-        # 账户可能仅存在于 holdings 中，upsert 创建到 accounts
-        name = (payload.get("name") or account_id).strip() or account_id
-        currency = (payload.get("base_currency") or "CNY").strip().upper()
-        broker = (payload.get("broker") or "").strip()
-        account_type = (payload.get("account_type") or "股票").strip()
-        balance = payload.get("balance")
-        acc = upsert_account(name, broker=broker, currency=currency, account_type=account_type, balance=balance)
-    return {"ok": True, "account": acc}
+    try:
+        from agents.secretary_agent import update_account as _update_account, upsert_account
+        payload = body.model_dump(exclude_none=True)
+        acc = _update_account(account_id, **payload)
+        if acc is None:
+            # 账户可能仅存在于 holdings 中，upsert 创建到 accounts
+            name = (payload.get("name") or account_id).strip() or account_id
+            currency = (payload.get("base_currency") or "CNY").strip().upper()
+            broker = (payload.get("broker") or "").strip()
+            account_type = (payload.get("account_type") or "股票").strip()
+            balance = payload.get("balance")
+            acc = upsert_account(name, broker=broker, currency=currency, account_type=account_type, balance=balance)
+        return {"ok": True, "account": acc}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        return _save_error_response()
 
 
 @router.delete("/portfolio/accounts/{account_id}")
 def delete_account(account_id: str):
     """删除账户：该账户下持仓迁移至「默认」。「默认」账户不可删除。"""
-    from agents.secretary_agent import delete_account as _delete_account
-    ok = _delete_account(account_id)
-    if not ok:
-        raise HTTPException(status_code=400, detail="无法删除该账户（可能为「默认」或不存在）")
-    return {"ok": True}
+    try:
+        from agents.secretary_agent import delete_account as _delete_account
+        ok = _delete_account(account_id)
+        if not ok:
+            raise HTTPException(status_code=400, detail="无法删除该账户（可能为「默认」或不存在）")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from pfa.portfolio_store import AuthRequiredError
+        if isinstance(e, AuthRequiredError):
+            return _auth_required_response()
+        return _save_error_response()
+
+
+@router.get("/portfolio/storage-status")
+def storage_status():
+    """诊断存储后端：当前使用的数据源（Supabase / SQLite / JSON）及 user_id。"""
+    try:
+        from backend.context import get_current_user_id
+        uid = get_current_user_id()
+    except Exception:
+        uid = "unknown"
+    use_sb = False
+    sb_error = None
+    try:
+        from backend.database.supabase_store import use_supabase
+        use_sb = use_supabase()
+    except Exception as e:
+        sb_error = str(e)
+    return {
+        "user_id": uid,
+        "supabase_configured": use_sb,
+        "supabase_error": sb_error,
+        "storage": "supabase" if use_sb and uid not in ("admin", "") else ("sqlite_or_json" if uid in ("admin", "") else "supabase"),
+        "env_check": {
+            "SUPABASE_URL": bool(__import__("os").environ.get("SUPABASE_URL") or __import__("os").environ.get("NEXT_PUBLIC_SUPABASE_URL")),
+            "SUPABASE_SERVICE_KEY": bool(__import__("os").environ.get("SUPABASE_SERVICE_KEY") or __import__("os").environ.get("SUPABASE_SERVICE_ROLE_KEY")),
+        },
+    }
 
 
 @router.get("/portfolio/debug-prices")

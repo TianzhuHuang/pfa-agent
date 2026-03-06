@@ -44,14 +44,16 @@ def _to_secid(symbol: str, market: str) -> Optional[str]:
 
 
 def _to_tencent_code(symbol: str, market: str) -> Optional[str]:
-    """PFA symbol -> 腾讯代码。A股 s_sh/s_sz，港股 hk。"""
+    """PFA symbol -> 腾讯代码。A股 s_sh/s_sz，港股 hk（需去除 .HK 后缀）。"""
     sym = str(symbol).strip()
     if not sym:
         return None
     if market == "A":
         return f"s_sh{sym}" if sym.startswith("6") else f"s_sz{sym}"
     if market == "HK":
-        return f"hk{sym}"
+        from pfa.symbol_utils import normalize_hk_symbol
+        sym = normalize_hk_symbol(sym)
+        return f"hk{sym}" if sym else None
     return None
 
 
@@ -69,10 +71,8 @@ def _to_sina_code(symbol: str, market: str) -> str:
     return ""
 
 
-def _parse_tencent_response(text: str, code_to_symbol: Dict[str, str]) -> Dict[str, Dict]:
-    """解析腾讯返回：v_s_sh600519="1~贵州茅台~600519~1401.18~涨跌~涨跌%~..."
-    现价=index 3，涨跌%=index 5（若有）。
-    """
+def _parse_tencent_response(text: str, code_to_symbol: Dict[str, str], is_hk: bool = False) -> Dict[str, Dict]:
+    """解析腾讯返回：A股 index3=现价, 4=涨跌额, 5=涨跌%；港股 index3=现价, 4=昨收, 5=最高(非涨跌!), 31=涨跌额, 32=涨跌%。"""
     results = {}
     for line in text.strip().split("\n"):
         if not line or "=" not in line:
@@ -87,26 +87,48 @@ def _parse_tencent_response(text: str, code_to_symbol: Dict[str, str]) -> Dict[s
         parts = m.group(2).split("~")
         if len(parts) < 4:
             continue
+        # 港股 tc_code 以 hk 开头，parts[5]=最高价(约500)，绝不能当涨跌%用
+        is_hk_row = tc_code.lower().startswith("hk")
         try:
             current = float(parts[3])
             if current <= 0:
                 continue
             pct = 0.0
             chg = 0.0
-            if len(parts) > 6 and parts[5]:
+            if (is_hk or is_hk_row) and len(parts) > 32 and parts[31] and parts[32]:
+                try:
+                    chg = float(parts[31])
+                    pct = float(parts[32])
+                except (ValueError, TypeError):
+                    pass
+            if is_hk or is_hk_row:
+                entered_hk_branch = len(parts) > 32 and bool(parts[31]) and bool(parts[32])
+                _log.info(
+                    "[腾讯港股] tc_code=%s pfa_sym=%s len(parts)=%d parts[4]=%s parts[5]=%s "
+                    "parts[31]=%s parts[32]=%s entered_hk_branch=%s pct=%.2f chg=%.2f",
+                    tc_code, pfa_sym, len(parts),
+                    parts[4] if len(parts) > 5 else "N/A",
+                    parts[5] if len(parts) > 5 else "N/A",
+                    parts[31] if len(parts) > 32 else "N/A",
+                    parts[32] if len(parts) > 32 else "N/A",
+                    entered_hk_branch, pct, chg,
+                )
+            if not (is_hk or is_hk_row) and len(parts) > 6 and parts[5]:
                 try:
                     chg = float(parts[4])
                     pct = float(parts[5])
                 except (ValueError, TypeError):
                     pass
-            if pct == 0 and chg == 0 and len(parts) > 4 and parts[4]:
+            if not (is_hk or is_hk_row) and pct == 0 and chg == 0 and len(parts) > 4 and parts[4]:
                 try:
                     last_close = float(parts[4])
-                    if last_close > 0:
+                    if last_close > 0 and 0.5 * current < last_close < 1.5 * current:
                         chg = current - last_close
                         pct = (chg / last_close) * 100
                 except (ValueError, TypeError):
                     pass
+            if not (is_hk or is_hk_row) and abs(pct) > 50:
+                pct = pct / 100
             results[pfa_sym] = {
                 "current": current,
                 "percent": round(pct, 2),
@@ -136,7 +158,7 @@ def _fetch_tencent_ashares(holdings: List[Dict]) -> Dict[str, Dict]:
         url = TENCENT_QUOTE_URL + ",".join(codes)
         r = requests.get(url, headers=TENCENT_HEADERS, timeout=8)
         r.raise_for_status()
-        return _parse_tencent_response(r.text, code_to_symbol)
+        return _parse_tencent_response(r.text, code_to_symbol, is_hk=False)
     except Exception as e:
         _log.warning("腾讯 A 股请求失败: %s", e)
         return {}
@@ -160,7 +182,17 @@ def _fetch_tencent_hk(holdings: List[Dict]) -> Dict[str, Dict]:
         url = TENCENT_QUOTE_URL + ",".join(codes)
         r = requests.get(url, headers=TENCENT_HEADERS, timeout=8)
         r.raise_for_status()
-        return _parse_tencent_response(r.text, code_to_symbol)
+        for line in r.text.strip().split("\n"):
+            if "hk00700" in line.lower() and "=" in line:
+                m = re.match(r'v_(\w+)="([^"]+)"', line.strip())
+                if m:
+                    raw_parts = m.group(2).split("~")
+                    _log.info(
+                        "[腾讯港股原始] hk00700 raw parts[0:40]=%s",
+                        raw_parts[:40] if len(raw_parts) >= 40 else raw_parts,
+                    )
+                break
+        return _parse_tencent_response(r.text, code_to_symbol, is_hk=True)
     except Exception as e:
         _log.warning("腾讯港股请求失败: %s", e)
         return {}
@@ -384,6 +416,13 @@ def get_realtime_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
     # 港股：腾讯优先（ECS 机房唯一可用），新浪/Yahoo 回退
     if hk_holdings:
         results.update(_fetch_tencent_hk(hk_holdings))
+        for sym in ("00700", "00700.HK"):
+            if sym in results:
+                _log.info(
+                    "[get_realtime_quotes] 00700 result percent=%s change=%s",
+                    results[sym].get("percent"), results[sym].get("change"),
+                )
+                break
         hk_missing = [h for h in hk_holdings if h["symbol"] not in results]
         if hk_missing:
             code_map = {_to_sina_code(h["symbol"], "HK"): h["symbol"] for h in hk_missing}

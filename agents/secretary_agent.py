@@ -301,6 +301,10 @@ def update_holdings_bulk(holdings: List[Dict]) -> dict:
             entry["currency"] = h.get("currency")
         if h.get("exchange"):
             entry["exchange"] = str(h.get("exchange", "")).strip()
+        if h.get("ocr_confirmed") is not None:
+            entry["ocr_confirmed"] = bool(h["ocr_confirmed"])
+        if h.get("price_deviation_warn") is not None:
+            entry["price_deviation_warn"] = bool(h["price_deviation_warn"])
         clean.append(entry)
     portfolio["holdings"] = clean
     save_portfolio(portfolio)

@@ -23,9 +23,12 @@ if _env.exists():
     except ImportError:
         pass
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+_log = logging.getLogger("backend.main")
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -76,6 +79,55 @@ app.add_middleware(
 )
 
 
+def _decode_supabase_jwt(token: str) -> str | None:
+    """
+    解析 Supabase JWT，返回 sub (user_id) 或 None。
+    优先 JWKS (ES256)，失败时回退 HS256（Legacy JWT Secret 仅对旧 HS256 签发的 token 有效）。
+    当前项目若已迁移至 ECC，新 token 必须通过 JWKS 验证。
+    """
+    supabase_url = (os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+    if not supabase_url or not token:
+        return None
+    import jwt
+
+    skip_aud = os.environ.get("PFA_JWT_SKIP_AUDIENCE", "").strip() == "1"
+    decode_opts = {"verify_exp": True, "verify_aud": not skip_aud}
+
+    # 1. 优先 JWKS (ES256/RS256) — 当前 Supabase 默认
+    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+    try:
+        jwks_client = jwt.PyJWKClient(jwks_url, timeout=15)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["ES256", "RS256"],
+            audience="authenticated",
+            options=decode_opts,
+        )
+        sub = payload.get("sub")
+        return str(sub) if sub else None
+    except Exception as e:
+        _log.info("JWT JWKS 解析失败，尝试 HS256: %s", e)
+
+    # 2. 回退 HS256（Legacy JWT Secret，仅对 HS256 签发的 token 有效）
+    secret = os.environ.get("SUPABASE_JWT_SECRET", "").strip()
+    if secret:
+        try:
+            payload = jwt.decode(
+                token,
+                secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+                options=decode_opts,
+            )
+            sub = payload.get("sub")
+            return str(sub) if sub else None
+        except Exception as e2:
+            _log.warning("JWT HS256 解析失败: %s", e2)
+    return None
+
+
 @app.middleware("http")
 async def set_user_context(request, call_next):
     """从 Authorization 头解析 user_id 并设置到 context，供 portfolio_store 等读取。"""
@@ -85,17 +137,13 @@ async def set_user_context(request, call_next):
     auth = request.headers.get("Authorization")
     if auth and auth.startswith("Bearer "):
         token = auth[7:]
-        supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
-        jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
-        if supabase_url and jwt_secret and token:
-            try:
-                import jwt
-                payload = jwt.decode(token, jwt_secret, audience="authenticated", algorithms=["HS256"])
-                sub = payload.get("sub")
-                if sub:
-                    user_id = str(sub)
-            except Exception:
-                pass
+        decoded = _decode_supabase_jwt(token)
+        if decoded:
+            user_id = decoded
+        else:
+            _log.info("JWT 未解析出 user_id（JWKS/HS256 均失败），将使用 admin")
+    elif auth:
+        _log.debug("Authorization 头格式异常（非 Bearer）")
 
     token = current_user_id.set(user_id)
     try:

@@ -80,7 +80,7 @@ export function TradeConfirmCard({ payload, onConfirm, onCancel }: TradeConfirmC
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
-        throw new Error(data.detail || data.error || `请求失败 ${r.status}`);
+        throw new Error((data as { error?: string; detail?: string }).error || (data as { detail?: string }).detail || "保存失败，请稍后重试");
       }
       onConfirm({ account, quantity: qty, cost_price: price });
     } catch (e) {

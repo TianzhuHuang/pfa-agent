@@ -178,6 +178,9 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
       if (r.ok) {
         onAdded();
         onClose();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        alert((d as { error?: string })?.error || "保存失败，请稍后重试");
       }
     } finally {
       setAdding(null);
@@ -295,6 +298,9 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
       if (r.ok) {
         onAdded();
         onClose();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setOcrStatus((d as { error?: string })?.error || "保存失败，请稍后重试");
       }
     } finally {
       setOcrLoading(false);
@@ -367,6 +373,9 @@ export function EntryModal({ open, onClose, onAdded, initialTab }: EntryModalPro
       if (r.ok) {
         onAdded();
         onClose();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setFileStatus((d as { error?: string })?.error || "保存失败，请稍后重试");
       }
     } finally {
       setFileLoading(false);

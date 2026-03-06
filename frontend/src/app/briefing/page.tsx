@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 
 import { apiFetch, API_BASE } from "@/lib/api";
 import { useColorScheme } from "@/contexts/ColorSchemeContext";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 function todayStr(): string {
   const d = new Date();
@@ -468,7 +469,9 @@ export default function BriefingPage() {
       <div className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wider text-[#888888]">历史晨报</div>
         {historyLoading ? (
-          <div className="py-8 text-center text-sm text-[#666]">加载中...</div>
+          <div className="flex min-h-[160px] items-center justify-center py-8">
+            <LoadingOverlay fullScreen={false} />
+          </div>
         ) : history.length === 0 && !briefing ? (
           <div className="py-12 text-center">
             <div className="text-5xl opacity-20">📰</div>
@@ -513,7 +516,9 @@ export default function BriefingPage() {
                       ) : loadError[r.id] ? (
                         <div className="py-4 text-center text-sm text-red-400">{loadError[r.id]}</div>
                       ) : (
-                        <div className="py-4 text-center text-sm text-[#666]">加载中...</div>
+                        <div className="flex min-h-[80px] items-center justify-center py-4">
+                          <LoadingOverlay fullScreen={false} compact text="稳扎稳打，数据正在搬运中..." />
+                        </div>
                       )}
                     </div>
                   </motion.div>

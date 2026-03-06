@@ -15,6 +15,7 @@ import { useDisplayCurrency, currencySymbol } from "@/contexts/DisplayCurrencyCo
 import { useColorScheme } from "@/contexts/ColorSchemeContext";
 import { CurrencyDropdown } from "@/components/CurrencyDropdown";
 import { AccountCurrencyDropdown } from "@/components/AccountCurrencyDropdown";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { isTradingHours } from "@/lib/tradingHours";
 import { PORTFOLIO_REFRESH_INTERVAL } from "@/lib/refreshConstants";
@@ -23,19 +24,19 @@ interface HoldingRow {
   symbol?: string;
   name?: string;
   is_cash?: boolean;
-  current_price?: number;
+  current_price?: number | null;
   price_loaded?: boolean;
   cost_price?: number;
   quantity?: number;
-  value_cny?: number;
-  value_local?: number;
+  value_cny?: number | null;
+  value_local?: number | null;
   value_display?: number | null;
   currency_error?: boolean;
   currency?: string;
-  pnl_cny?: number;
-  pnl_pct?: number;
-  today_pct?: number;
-  today_pnl?: number;
+  pnl_cny?: number | null;
+  pnl_pct?: number | null;
+  today_pct?: number | null;
+  today_pnl?: number | null;
   position_pct?: number;
   account?: string;
   exchange?: string;
@@ -69,7 +70,13 @@ export default function DashboardPage() {
   const [dismissedConfirmIds, setDismissedConfirmIds] = useState<Set<number>>(new Set());
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  // 首次访问默认展开 Ask PFA，后续记住用户偏好
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("pfa_chat_drawer_closed");
+    return saved !== "true"; // 首次访问或未关闭过则默认展开
+  });
+  const [priceLoadTimedOut, setPriceLoadTimedOut] = useState(false);
   const { displayCurrency } = useDisplayCurrency();
   const { upColor, downColor, upBadge, downBadge } = useColorScheme();
   const [accountCurrencyOverrides, setAccountCurrencyOverrides] = useState<Record<string, "CNY" | "USD" | "HKD">>({});
@@ -281,9 +288,10 @@ export default function DashboardPage() {
       }
       const prevTotal = prevTotalRef.current;
       apiFetch(`${API_BASE}/api/portfolio?display_currency=${displayCurrency}`)
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
+        .then(async (r) => {
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error((d as { error?: string })?.error || `HTTP ${r.status}`);
+          return d;
         })
         .then((d) => {
           const nextTotal = d?.total_value_cny ?? null;
@@ -315,13 +323,21 @@ export default function DashboardPage() {
 
   useEffect(() => {
     apiFetch(`${API_BASE}/api/portfolio?display_currency=${displayCurrency}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((d as { error?: string })?.error || `HTTP ${r.status}`);
+        return d;
+      })
       .then((d) => {
         setVal(d);
+        setRefreshError(null);
         prevTotalRef.current = d?.total_value_cny ?? null;
         countdownResetRef.current?.();
       })
-      .catch(() => setVal(null))
+      .catch(() => {
+        setVal(null);
+        setRefreshError("数据加载失败，请刷新重试");
+      })
       .finally(() => setLoading(false));
   }, [displayCurrency]);
 
@@ -387,6 +403,26 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  // 价格加载超时：5秒后标记为超时
+  useEffect(() => {
+    if (!loading && val) {
+      const hasUnloadedPrices = Object.values(val.by_account ?? {}).some((acc) =>
+        (acc.holdings ?? []).some((h: HoldingRow) => h.price_loaded === false)
+      );
+      if (hasUnloadedPrices) {
+        const timer = setTimeout(() => setPriceLoadTimedOut(true), 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+    setPriceLoadTimedOut(false);
+  }, [loading, val]);
+
+  // 保存抽屉状态偏好
+  const handleCloseChatDrawer = useCallback(() => {
+    setChatDrawerOpen(false);
+    localStorage.setItem("pfa_chat_drawer_closed", "true");
+  }, []);
+
   const totalV = val?.total_value_cny ?? 0;
   const totalPnl = val?.total_pnl_cny ?? 0;
   const totalPct = val?.total_pnl_pct ?? 0;
@@ -418,10 +454,7 @@ export default function DashboardPage() {
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
         <div className="mx-auto max-w-6xl">
           {loading ? (
-            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-              <div className="h-9 w-32 animate-pulse rounded bg-white/10" />
-              <div className="text-sm text-[#888888]">加载中...</div>
-            </div>
+            <LoadingOverlay fullScreen />
           ) : totalV === 0 ? (
             <OnboardingView
               onOpenEntry={(tab) => {
@@ -461,7 +494,7 @@ export default function DashboardPage() {
                   {refreshError ? (
                     <>
                       <div className="flex-1" />
-                      <span className="shrink-0 text-[10px] text-red-400">刷新失败</span>
+                      <span className="shrink-0 text-[10px] text-red-400" title={refreshError}>{refreshError}</span>
                     </>
                   ) : refreshing ? (
                     <>
@@ -565,7 +598,9 @@ export default function DashboardPage() {
               <span className="text-sm font-medium text-[#888888]">持仓明细</span>
             </div>
             {loading ? (
-              <div className="p-8 text-center text-[#888888]">加载中...</div>
+              <div className="flex min-h-[200px] items-center justify-center">
+                <LoadingOverlay fullScreen={false} />
+              </div>
             ) : !val?.by_account || Object.keys(val.by_account).length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
                 <div className="text-4xl">📊</div>
@@ -628,11 +663,11 @@ export default function DashboardPage() {
                             const pnlRaw = h.pnl_cny ?? 0;
                             const pnlSrcCur = targetCur === "original" ? "CNY" : targetCur;
                             const pnl = accountCur === pnlSrcCur ? pnlRaw : convertValue(pnlRaw, pnlSrcCur, accountCur);
-                            const pct = h.pnl_pct ?? 0;
-                            const todayPct = h.today_pct ?? 0;
+                            const pct = h.pnl_pct; // 保留 null，UI 根据 null 显示 "—"
+                            const todayPct = h.today_pct; // 保留 null，UI 根据 null 显示 "—"
                             const posPct = h.position_pct ?? 0;
                             const isUp = pnl >= 0;
-                            const todayUp = todayPct >= 0;
+                            const todayUp = (todayPct ?? 0) >= 0;
                             const origCur = h.currency ?? "CNY";
                             const priceSym = currencySymbol(origCur);
                             const rowSrcCur = targetCur === "original" ? origCur : targetCur;
@@ -674,16 +709,20 @@ export default function DashboardPage() {
                                 </td>
                                 <td className="px-3 py-2 text-right text-white">
                                   {h.is_cash ? "1.00" : h.price_loaded === false ? (
-                                    <span className="inline-flex items-center gap-1 text-[#888]">
-                                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#888] border-t-transparent" />
-                                      <span className="text-xs">获取中</span>
-                                    </span>
+                                    priceLoadTimedOut ? (
+                                      <span className="text-xs text-[#666]" title="无法获取实时行情">暂无行情</span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[#888]">
+                                        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#888] border-t-transparent" />
+                                        <span className="text-xs">获取中</span>
+                                      </span>
+                                    )
                                   ) : `${priceSym}${(h.current_price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {h.is_cash ? (
                                     <span className="text-[#888888]">—</span>
-                                  ) : h.price_loaded === false ? (
+                                  ) : h.price_loaded === false || todayPct == null ? (
                                     <span className="text-[#888888]">—</span>
                                   ) : (
                                     <span
@@ -691,7 +730,7 @@ export default function DashboardPage() {
                                         todayPct === 0 ? "bg-white/5 text-[#888888]" : todayUp ? upBadge : downBadge
                                       }`}
                                     >
-                                      {(todayPct >= 0 ? "+" : "")}{todayPct.toFixed(2)}%
+                                      {((todayPct ?? 0) >= 0 ? "+" : "")}{(todayPct ?? 0).toFixed(2)}%
                                     </span>
                                   )}
                                 </td>
@@ -722,6 +761,8 @@ export default function DashboardPage() {
                                 <td className="px-3 py-2 text-center">
                                   {h.is_cash ? (
                                     <span className="text-[#888888]">—</span>
+                                  ) : h.price_loaded === false ? (
+                                    <span className="text-[#888888]">—</span>
                                   ) : (
                                     <span
                                       className={`inline-block min-w-[3rem] rounded px-1.5 py-0.5 text-xs ${
@@ -735,6 +776,8 @@ export default function DashboardPage() {
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {h.is_cash ? (
+                                    <span className="text-[#888888]">—</span>
+                                  ) : h.price_loaded === false || pct == null ? (
                                     <span className="text-[#888888]">—</span>
                                   ) : (
                                     <span
@@ -817,7 +860,7 @@ export default function DashboardPage() {
               </svg>
             </button>
             <button
-              onClick={() => setChatDrawerOpen(false)}
+              onClick={handleCloseChatDrawer}
               className="rounded p-1.5 text-[#888888] hover:bg-white/10 hover:text-white"
               title="收起"
             >
@@ -829,7 +872,17 @@ export default function DashboardPage() {
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && !streaming && (
-            <div className="text-sm text-[#888888]">输入问题发送给 AI</div>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-[#00e701]/20 bg-[#00e701]/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">👋</span>
+                  <span className="text-sm font-medium text-white">欢迎使用 Ask PFA</span>
+                </div>
+                <p className="text-xs text-[#b1bad3] leading-relaxed">
+                  我是你的 AI 投研助手，可以帮你分析持仓风险、解读市场新闻、记录交易操作。试试下方的快捷按钮，或直接输入你的问题。
+                </p>
+              </div>
+            </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className="space-y-2">
@@ -906,7 +959,7 @@ export default function DashboardPage() {
       {chatDrawerOpen && (
         <div
           className="fixed left-0 right-0 top-12 bottom-0 z-40 bg-black/30 md:bg-black/20"
-          onClick={() => setChatDrawerOpen(false)}
+          onClick={handleCloseChatDrawer}
           aria-hidden="true"
         />
       )}
