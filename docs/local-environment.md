@@ -84,6 +84,61 @@ cd frontend && npm run dev                        # 前端
 
 **晨报卡住时**：Next.js rewrites 代理有约 30 秒超时。在 `frontend/.env.local` 中设置 `NEXT_PUBLIC_API_URL=http://localhost:8000` 可直连后端，绕过代理超时。
 
+## 本地 Supabase 调试
+
+当需要本地调试 OCR 导入、持仓保存等与生产相同的数据流时，可配置 localhost 使用 Supabase（与生产同一数据库），避免每次部署到 ECS 才能验证。
+
+### 1. 项目根目录 `.env`
+
+从 `.env.production.example` 复制并填入（或沿用 ECS 上的值）：
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+- `SUPABASE_JWT_SECRET`（JWKS 失败时 HS256 回退）
+- `DASHSCOPE_API_KEY`（OCR 需要）
+
+可选调试变量：
+
+- `PFA_DEBUG_ERRORS=1`：保存失败时弹窗显示具体错误（如 schema 字段缺失、JWT 无效），便于排查「数据保存失败，请稍后重试」
+
+### 2. 前端 `frontend/.env.local`
+
+创建或编辑 `frontend/.env.local`：
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://你的项目.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（anon key）
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+- `NEXT_PUBLIC_API_URL`：直连本地后端，避免代理超时
+- Supabase 变量：与生产一致，用于登录和 JWT
+
+### 3. 启动命令
+
+```bash
+# 终端 1：后端
+cd /path/to/PFA
+uvicorn backend.main:app --reload --port 8000
+
+# 终端 2：前端
+cd frontend && npm run dev
+```
+
+访问 http://localhost:3000，使用 Supabase 账号登录后，持仓、OCR 导入等操作会写入 Supabase。
+
+### 常见问题
+
+| 现象 | 可能原因 | 处理 |
+|------|----------|------|
+| 添加持仓提示「数据保存失败」 | Supabase schema 与代码不一致、JWT 解析失败 | 设置 `PFA_DEBUG_ERRORS=1` 查看具体错误；检查 `SUPABASE_JWT_SECRET` 与 Supabase Dashboard 一致 |
+| storage-status 返回 `user_id: admin` | 未登录或 JWT 未正确传递 | 确保已登录；检查 `frontend/.env.local` 中 Supabase 变量已配置 |
+| JWT 解析失败 | JWKS 不可达或 Legacy Secret 不匹配 | 本地网络可访问 Supabase JWKS；或配置 `SUPABASE_JWT_SECRET`（Settings → API → JWT Secret） |
+
+### 快速初始化
+
+执行 `bash scripts/init_local_supabase.sh` 可自动从模板复制 `.env` 和 `frontend/.env.local`（不覆盖已有文件），然后按提示填入 Supabase 变量。
+
 ## 多 Agent 架构与入口说明
 
 - 控制中心入口是 **`app/pfa_dashboard.py`**，不是 `agents/secretary.py`。  

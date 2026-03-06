@@ -82,18 +82,11 @@ body {
   to { opacity: 1; }
 }
 
-/* Loading 乌龟漫步：5 秒周期水平来回滑动 */
-@keyframes pfa-turtle-walk {
-  0%, 100% { transform: translateX(-24px); }
-  50% { transform: translateX(24px); }
+/* Loading Logo 呼吸灯：与登录页一致 */
+@keyframes pfa-loading-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
 }
-@keyframes pfa-turtle-walk-compact {
-  0%, 100% { transform: translateX(-10px); }
-  50% { transform: translateX(10px); }
-}
-.pfa-turtle-walk-container svg {
-  animation: pfa-turtle-walk 5s ease-in-out infinite;
-}
-.pfa-turtle-walk-container.pfa-turtle-walk-compact svg {
-  animation: pfa-turtle-walk-compact 5s ease-in-out infinite;
+.pfa-loading-logo img {
+  animation: pfa-loading-pulse 2s ease-in-out infinite;
 }
