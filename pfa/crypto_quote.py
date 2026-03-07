@@ -1,9 +1,8 @@
 """
-数字货币实时行情 — Binance 优先，CoinGecko 回退
+数字货币实时行情 — OKX 优先，Binance/CoinGecko 回退
 
 免费 API，无需 key，支持 BTC/ETH/USDT 等主流币种。
-Binance 在国内可能被墙，失败时自动回退 CoinGecko。
-生产环境可通过 HTTP_PROXY/HTTPS_PROXY 配置代理。
+OKX 可直连；Binance/CoinGecko 在机房易被墙，配置 PFA_PROXY_BASE 时经 Worker 代理。
 """
 
 from __future__ import annotations
@@ -13,11 +12,13 @@ import os
 import requests
 from typing import Dict, List
 
+from pfa.proxy_fetch import get as proxy_get, use_proxy
+
 logger = logging.getLogger("pfa.crypto_quote")
 
 
 def _get_proxies() -> Dict[str, str | None]:
-    """HTTP 代理：生产环境在国内时可配置 HTTP_PROXY/HTTPS_PROXY。"""
+    """HTTP 代理：生产环境在国内时可配置（PFA_PROXY_BASE 未设置时）。"""
     http = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
     https = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
     proxy = https or http
@@ -25,6 +26,7 @@ def _get_proxies() -> Dict[str, str | None]:
         return {"http": proxy, "https": proxy}
     return {"http": None, "https": None}
 
+OKX_TICKER_URL = "https://www.okx.com/api/v5/market/ticker"
 BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
 COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price"
 
@@ -69,9 +71,43 @@ def _get_crypto_holdings_symbols(holdings: List[Dict]) -> List[str]:
     return list(dict.fromkeys(crypto_symbols))  # 去重保序
 
 
+def get_crypto_quotes_okx(holdings: List[Dict]) -> Dict[str, Dict]:
+    """
+    从 OKX 获取数字货币价格。直连；机房不可达时可依赖后续 Binance/CoinGecko 经代理。
+    Returns {symbol: {current, percent, name}}
+    """
+    symbols = _get_crypto_holdings_symbols(holdings)
+    if not symbols:
+        return {}
+    results = {}
+    for sym in symbols:
+        try:
+            inst_id = f"{sym}-USDT"
+            resp = requests.get(
+                OKX_TICKER_URL,
+                params={"instId": inst_id},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=8,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            tickers = data.get("data") or []
+            if not tickers:
+                continue
+            last = tickers[0].get("last")
+            if last is None:
+                continue
+            results[sym] = {"current": float(last), "percent": 0, "name": sym, "source": "okx"}
+        except Exception as e:
+            logger.debug("OKX %s error: %s", sym, e)
+    if results:
+        logger.info("OKX: fetched %d crypto prices", len(results))
+    return results
+
+
 def get_crypto_quotes_binance(holdings: List[Dict]) -> Dict[str, Dict]:
     """
-    从 Binance 获取数字货币价格。国内可能被墙，失败返回空。
+    从 Binance 获取数字货币价格。机房易被墙，配置 PFA_PROXY_BASE 时经代理。
     Returns {symbol: {current, percent, name}}
     """
     symbols = _get_crypto_holdings_symbols(holdings)
@@ -79,16 +115,19 @@ def get_crypto_quotes_binance(holdings: List[Dict]) -> Dict[str, Dict]:
     if not symbols:
         return {}
     try:
-        resp = requests.get(
-            BINANCE_TICKER_URL,
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=8,
-            proxies=_get_proxies(),
-        )
+        if use_proxy():
+            resp = proxy_get(BINANCE_TICKER_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        else:
+            resp = requests.get(
+                BINANCE_TICKER_URL,
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=8,
+                proxies=_get_proxies(),
+            )
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        logger.warning(f"Binance API error: {e}")
+        logger.warning("Binance API error: %s", e)
         return {}
     # data 可能是单对象或数组；/ticker/price 无 symbol 时返回数组
     items = data if isinstance(data, list) else [data]
@@ -110,7 +149,7 @@ def get_crypto_quotes_binance(holdings: List[Dict]) -> Dict[str, Dict]:
 
 def get_crypto_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
     """
-    获取数字货币实时价格。Binance 优先，失败时回退 CoinGecko。
+    获取数字货币实时价格。OKX 优先，失败时回退 Binance，再回退 CoinGecko。
 
     Args:
         holdings: 持仓列表，筛选 market="OT" 或 market="CRYPTO" 或 account="数字货币" 的项
@@ -122,8 +161,12 @@ def get_crypto_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
     if not symbols:
         return {}
 
-    # 先试 Binance
-    results = get_crypto_quotes_binance(holdings)
+    # 先试 OKX，再 Binance，再 CoinGecko
+    results = get_crypto_quotes_okx(holdings)
+    missing = [s for s in symbols if s not in results]
+    if missing:
+        results.update(get_crypto_quotes_binance(holdings))
+    missing = [s for s in symbols if s not in results]
     missing = [s for s in symbols if s not in results and s in SYMBOL_TO_COINGECKO_ID]
     if not missing:
         return results
@@ -139,13 +182,16 @@ def get_crypto_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
             "vs_currencies": "usd",
             "include_24hr_change": "true",
         }
-        resp = requests.get(
-            COINGECKO_API,
-            params=params,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-            timeout=10,
-            proxies=_get_proxies(),
-        )
+        if use_proxy():
+            resp = proxy_get(COINGECKO_API, params=params, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}, timeout=10)
+        else:
+            resp = requests.get(
+                COINGECKO_API,
+                params=params,
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                timeout=10,
+                proxies=_get_proxies(),
+            )
         resp.raise_for_status()
         data = resp.json()
     except requests.exceptions.Timeout:

@@ -23,24 +23,14 @@ function maskEmail(email: string): string {
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<User | null | undefined>(undefined);
-  const [showLocalMode, setShowLocalMode] = useState(false);
-  const [localModeCookie, setLocalModeCookie] = useState(false);
+  const [user, setUser] = useState<User | null | undefined>(() => (hasSupabaseConfig() ? undefined : null));
+
+  // Derived (no state): avoids setState-in-effect lint and hydration mismatch.
+  const showLocalMode = !hasSupabaseConfig() && isLocalhost();
+  const localModeCookie = typeof document !== "undefined" && document.cookie.includes("pfa_local_mode=1");
 
   useEffect(() => {
-    setShowLocalMode(!hasSupabaseConfig() && isLocalhost());
-  }, []);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    setLocalModeCookie(document.cookie.includes("pfa_local_mode=1"));
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!hasSupabaseConfig()) {
-      setUser(null);
-      return;
-    }
+    if (!hasSupabaseConfig()) return;
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
     const {

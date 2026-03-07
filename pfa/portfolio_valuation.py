@@ -191,6 +191,34 @@ def get_realtime_prices(holdings: List[Dict], accounts: Optional[List[Dict]] = N
         except Exception as e:
             _log.warning("Xueqiu fallback failed: %s", e)
 
+    # 6. 可选：配置 PFA_PROXY_BASE 时，对仍缺失的 HK/US/SGX/数字货币 用 PFAIntelEngine 补全
+    try:
+        from pfa.proxy_fetch import use_proxy
+        from pfa.market_data_engine import PFAIntelEngine
+        if use_proxy():
+            missing = [h for h in holdings if h.get("symbol") and h["symbol"] not in prices]
+            intel_markets = ("HK", "US", "SGX", "OT", "CRYPTO")
+            missing = [h for h in missing if str(h.get("market", "")).upper() in intel_markets
+                       or (str(h.get("account", "")).strip() in crypto_account_names)]
+            if missing:
+                engine = PFAIntelEngine()
+                items = []
+                for h in missing:
+                    mkt = str(h.get("market", "OT")).upper()
+                    if (h.get("account") or "").strip() in crypto_account_names and mkt not in ("OT", "CRYPTO"):
+                        mkt = "CRYPTO"
+                    items.append({"symbol": h["symbol"], "market": mkt})
+                intel_results = engine.get_multiple_prices(items)
+                for h, out in zip(missing, intel_results):
+                    if out and out.get("price") is not None and h["symbol"] not in prices:
+                        prices[h["symbol"]] = {
+                            "current": out["price"],
+                            "percent": 0,
+                            "name": h.get("name") or h["symbol"],
+                        }
+    except Exception as e:
+        _log.debug("PFAIntelEngine fallback skipped: %s", e)
+
     loaded = len(prices)
     total = len(holdings)
     if total > 0 and loaded == 0:
@@ -344,6 +372,13 @@ def calculate_portfolio_value(
     total_pnl = total_value - total_cost
     total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0
 
+    total_today_pnl = 0.0
+    for acct_data in by_account.values():
+        for ho in acct_data.get("holdings", []):
+            t = ho.get("today_pnl")
+            if t is not None:
+                total_today_pnl += float(t)
+
     for acct_data in by_account.values():
         acct_val = acct_data["value"]
         for ho in acct_data["holdings"]:
@@ -359,6 +394,7 @@ def calculate_portfolio_value(
         "total_cost_cny": round(total_cost, 2),
         "total_pnl_cny": round(total_pnl, 2),
         "total_pnl_pct": total_pnl_pct,
+        "total_today_pnl": round(total_today_pnl, 2),
         "target_currency": "original" if is_original else target_currency,
         "fx_updated_at": fx_updated_at,
         "by_account": by_account,

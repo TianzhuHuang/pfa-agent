@@ -92,6 +92,7 @@ export default function StockDetailPage() {
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
   const [historySessions, setHistorySessions] = useState<TickerSession[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [askPfaDrawerOpen, setAskPfaDrawerOpen] = useState(false);
   const tickerScrollRef = useRef<HTMLDivElement>(null);
   const visible = usePageVisibility();
 
@@ -631,8 +632,8 @@ export default function StockDetailPage() {
             </div>
           </div>
 
-          {/* 右栏：Ask PFA Live — 固定高度，输入框始终可见 */}
-          <div className="rounded-lg bg-[#1A1A1A] p-4 flex flex-col h-[calc(100vh-280px)] min-h-[500px] max-h-[700px] sticky top-20">
+          {/* 右栏：Ask PFA Live — 桌面端 Sticky，移动端隐藏由 FAB+抽屉 触达 */}
+          <div className="hidden md:flex md:min-w-[320px] flex-col rounded-lg bg-[#1A1A1A] p-4 h-[calc(100vh-280px)] min-h-[500px] max-h-[700px] sticky top-20">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-white">Ask PFA Live</span>
@@ -744,6 +745,120 @@ export default function StockDetailPage() {
               </form>
             </div>
           </div>
+
+          {/* 移动端：Ask PFA FAB */}
+          <button
+            type="button"
+            onClick={() => setAskPfaDrawerOpen(true)}
+            className="md:hidden fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#00e701] text-black shadow-lg hover:opacity-92"
+            aria-label="Ask PFA"
+          >
+            <span className="text-xs font-semibold">Ask</span>
+          </button>
+
+          {/* 移动端：Ask PFA 底部抽屉 */}
+          {askPfaDrawerOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/50 md:hidden"
+                onClick={() => setAskPfaDrawerOpen(false)}
+                aria-hidden="true"
+              />
+              <div className="fixed inset-x-0 bottom-0 z-50 flex max-h-[70vh] flex-col rounded-t-2xl bg-[#1A1A1A] md:hidden">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                  <span className="text-sm font-semibold text-white">Ask PFA Live</span>
+                  <button
+                    type="button"
+                    onClick={() => setAskPfaDrawerOpen(false)}
+                    className="rounded p-1.5 text-[#888] hover:bg-white/10 hover:text-white"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="px-4 pb-2 text-xs text-[#888]">基于 {name} 最新新闻，向 AI 提问</p>
+                <div className="flex-1 overflow-y-auto px-4 space-y-4 min-h-0">
+                  {tickerMessages.length === 0 && !tickerStreaming && (
+                    <div className="py-4">
+                      <div className="mb-3 text-xs font-medium text-[#666]">猜你想问</div>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          `${name} 的未来 3 年增长逻辑`,
+                          sentiment?.label === "偏多" ? `${name} 有哪些利好因素` : null,
+                          sentiment?.label === "偏空" ? `${name} 主要风险有哪些` : null,
+                          feedItems.length > 0 ? `解读：${feedItems[0]?.title?.slice(0, 20) || ""}...` : null,
+                        ]
+                          .filter(Boolean)
+                          .slice(0, 4)
+                          .map((prompt) => (
+                            <button
+                              key={prompt as string}
+                              type="button"
+                              onClick={() => sendTickerMessage(prompt as string)}
+                              disabled={tickerStreaming}
+                              className="rounded-lg border border-[#1976d2]/30 bg-[#1976d2]/10 px-3 py-1.5 text-xs font-medium text-[#b1bad3] hover:border-[#1976d2]/50 hover:bg-[#1976d2]/20 hover:text-white disabled:opacity-50"
+                            >
+                              {prompt}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  {tickerMessages.map((m, i) => (
+                    <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                      <ChatMessage
+                        content={m.content}
+                        role={m.role as "user" | "assistant"}
+                        isStreaming={tickerStreaming && m.role === "assistant" && i === tickerMessages.length - 1}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-white/10 p-4 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "分析个股", prompt: `分析 ${name} 的估值与成长性` },
+                      { label: "扫描风险", prompt: `${name} 近期有哪些风险点` },
+                    ].map(({ label, prompt }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => sendTickerMessage(prompt)}
+                        disabled={tickerStreaming}
+                        className="rounded-lg border border-[#1976d2]/30 bg-[#1976d2]/10 px-3 py-1.5 text-xs font-medium text-[#b1bad3] hover:border-[#1976d2]/50 hover:bg-[#1976d2]/20 hover:text-white disabled:opacity-50"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      sendTickerMessage(tickerInput);
+                    }}
+                    className="flex gap-2 rounded-full border border-white/10 bg-[#0a0a0a] px-4 py-3"
+                  >
+                    <input
+                      type="text"
+                      value={tickerInput}
+                      onChange={(e) => setTickerInput(e.target.value)}
+                      placeholder={`例如：${name} 的未来 3 年增长逻辑？`}
+                      disabled={tickerStreaming}
+                      className="flex-1 bg-transparent text-sm text-white placeholder:text-[#888] outline-none disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={tickerStreaming || !tickerInput.trim()}
+                      className="rounded-full bg-[#00e701] px-4 py-1.5 text-sm font-medium text-black disabled:opacity-50"
+                    >
+                      发送
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* 历史记录侧边栏 */}
           {historyPanelOpen && (

@@ -89,6 +89,9 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState(0);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [firstEntryBannerDismissed, setFirstEntryBannerDismissed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("pfa_first_entry_done") === "1"
+  );
   const prevTotalRef = useRef<number | null>(null);
   const countdownResetRef = useRef<() => void>(() => {});
   const router = useRouter();
@@ -464,6 +467,55 @@ export default function DashboardPage() {
             />
           ) : (
             <>
+          {/* 首笔录入后 AI 洞察引导 */}
+          {!firstEntryBannerDismissed && val?.holding_count === 1 && (
+            (() => {
+              const firstHolding = Object.values(val.by_account ?? {}).flatMap((a) => a.holdings ?? [])[0];
+              const firstSymbol = firstHolding?.symbol;
+              const firstName = firstHolding?.name ?? firstSymbol ?? "标的";
+              const dismiss = () => {
+                setFirstEntryBannerDismissed(true);
+                localStorage.setItem("pfa_first_entry_done", "1");
+              };
+              return (
+                <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-[#22c55e]/30 bg-[#22c55e]/5 px-4 py-3">
+                  <div>
+                    <span className="text-sm font-medium text-[#22c55e]">已为 {firstName} 完成首次风险扫描</span>
+                    <p className="mt-0.5 text-xs text-[#888]">AI 已准备好为你分析持仓，试试 Ask PFA 吧</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {firstSymbol && (
+                      <Link
+                        href={`/portfolio/${encodeURIComponent(firstSymbol)}`}
+                        onClick={dismiss}
+                        className="rounded bg-[#22c55e] px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"
+                      >
+                        查看详情
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { dismiss(); setEntryOpen(true); }}
+                      className="rounded border border-[#22c55e]/50 px-3 py-1.5 text-xs font-medium text-[#22c55e] hover:bg-[#22c55e]/10"
+                    >
+                      继续添加持仓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={dismiss}
+                      className="rounded p-1.5 text-[#888] hover:bg-white/10 hover:text-white"
+                      aria-label="关闭"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
+          )}
+
           {/* HeaderStats: 两列玻璃仪表盘 */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row">
             {/* 左侧：资产看板 */}

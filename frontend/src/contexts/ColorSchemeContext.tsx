@@ -30,16 +30,15 @@ const GREEN = "#00e701";
 const RED = "#ff4e33";
 
 export function ColorSchemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ColorSchemeMode>("green_up");
-
-  useEffect(() => {
+  const [mode, setModeState] = useState<ColorSchemeMode>(() => {
+    if (typeof window === "undefined") return "green_up";
     try {
       const stored = localStorage.getItem(STORAGE_KEY) as ColorSchemeMode | null;
-      if (stored === "green_up" || stored === "red_up") {
-        setModeState(stored);
-      }
-    } catch {}
-  }, []);
+      return stored === "green_up" || stored === "red_up" ? stored : "green_up";
+    } catch {
+      return "green_up";
+    }
+  });
 
   const setMode = useCallback((m: ColorSchemeMode) => {
     setModeState(m);

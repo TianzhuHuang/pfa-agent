@@ -22,8 +22,18 @@ import sys
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 import requests
+
+# 配置 PFA_PROXY_BASE 时，除腾讯外所有探测经 Worker 代理
+try:
+    from pfa.proxy_fetch import get as proxy_get, use_proxy
+except ImportError:
+    def use_proxy() -> bool:
+        return False
+    def proxy_get(*args, **kwargs) -> requests.Response:
+        raise RuntimeError("pfa.proxy_fetch not available")
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -46,14 +56,19 @@ def _probe(
     params: Optional[Dict[str, str]] = None,
     parse: Optional[Callable[[requests.Response], Optional[float]]] = None,
     timeout: float = 10,
+    direct_only: bool = False,
 ) -> ProbeResult:
-    """通用探测：请求 URL，解析现价，返回耗时与结果。"""
+    """通用探测：请求 URL，解析现价。PFA_PROXY_BASE 存在且 direct_only=False 时经代理；腾讯直连(direct_only=True)。"""
     h = {"User-Agent": UA}
     if headers:
         h.update(headers)
     start = time.perf_counter()
     try:
-        r = requests.get(url, headers=h, params=params, timeout=timeout)
+        if direct_only or not use_proxy():
+            r = requests.get(url, headers=h, params=params, timeout=timeout)
+        else:
+            full_url = url + ("&" if "?" in url else "?") + urlencode(params) if params else url
+            r = proxy_get(full_url, headers=h, timeout=timeout)
         ms = (time.perf_counter() - start) * 1000
         if r.status_code != 200:
             return ProbeResult(name=name, ok=False, ms=ms, error=f"HTTP {r.status_code}", raw=r.text[:150])
@@ -88,6 +103,7 @@ def probe_tencent_ashare() -> ProbeResult:
         "http://qt.gtimg.cn/q=s_sh600519",
         headers={"Referer": "http://gu.qq.com/"},
         parse=_parse_tencent,
+        direct_only=True,
     )
 
 
@@ -97,6 +113,7 @@ def probe_tencent_hk() -> ProbeResult:
         "http://qt.gtimg.cn/q=hk00883",
         headers={"Referer": "http://gu.qq.com/"},
         parse=_parse_tencent,
+        direct_only=True,
     )
 
 
@@ -281,7 +298,8 @@ def main() -> int:
         ("数字货币", probe_coingecko),
     ]
 
-    print("=== 价格接口探测（阿里云等机房环境）===\n")
+    proxy_note = " (经 PFA_PROXY_BASE 代理)" if use_proxy() else ""
+    print("=== 价格接口探测（阿里云等机房环境）===" + proxy_note + "\n")
     results: List[ProbeResult] = []
     last_cat = None
     for cat, fn in probes:

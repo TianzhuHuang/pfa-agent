@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,9 +29,15 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
+
+  // Avoid hydration mismatch: server render can't know window/hostname.
+  useEffect(() => setMounted(true), []);
+
+  const canEnterLocalMode = mounted && hasSupabaseConfig() && isLocalhost();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,12 +183,12 @@ function LoginForm() {
         <div className="mb-8 flex justify-center">
           <button
             type="button"
-            onClick={() => hasSupabaseConfig() && isLocalhost() && !loading && enterLocalMode(router, redirect)}
+            onClick={() => canEnterLocalMode && !loading && enterLocalMode(router, redirect)}
             className={`relative h-20 w-20 overflow-hidden rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#22C55E]/50 ${
-              hasSupabaseConfig() && isLocalhost() ? "hover:opacity-90" : "cursor-default"
+              canEnterLocalMode ? "hover:opacity-90" : "cursor-default"
             }`}
             style={{ animation: loading ? "pfa-logo-spin 2s linear infinite" : "pfa-breathe 3s ease-in-out infinite" }}
-            title={hasSupabaseConfig() && isLocalhost() ? "点击进入本地模式" : undefined}
+            title={canEnterLocalMode ? "点击进入本地模式" : undefined}
           >
             <Image
               src="/logo.png"
@@ -335,7 +341,7 @@ function LoginForm() {
                 </p>
 
                 {/* 本地模式入口：localhost 下可跳过登录 */}
-          {hasSupabaseConfig() && isLocalhost() && (
+          {canEnterLocalMode && (
             <div className="mt-5 pt-4 border-t border-white/10">
               <button
                 type="button"

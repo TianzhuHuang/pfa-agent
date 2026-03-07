@@ -136,6 +136,18 @@ def _get_valuation(display_currency: str = "CNY") -> Dict:
                 v = 0
             ho["position_pct"] = round((v / acct_val * 100), 1) if acct_val > 0 and v else 0
 
+    # Aggregate today's P&L for convenience (some clients want explicit total)
+    total_today_pnl = 0.0
+    for acct_data in val.get("by_account", {}).values():
+        for ho in acct_data.get("holdings", []):
+            t = ho.get("today_pnl")
+            if t is not None:
+                try:
+                    total_today_pnl += float(t)
+                except Exception:
+                    pass
+    val["total_today_pnl"] = round(total_today_pnl, 2)
+
     val["account_count"] = len(val["by_account"])
     return val
 

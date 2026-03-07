@@ -6,43 +6,21 @@
 
 PFA (Personal Finance Agent) is an AI-powered investment research assistant for fund managers and stock traders. Multi-agent architecture (Scout/Analyst/Auditor/Secretary) with 7+ data sources, Telegram push, and real-time portfolio valuation.
 
-**Current phase**: Dash UI migration complete; Phase 4 (Supabase multi-user) in design.
+**Current phase**: Next.js + FastAPI UI is the maintained path; Phase 4 (Supabase multi-user) in design.
 
 ### Running the project
 
 - **Python 3.12+** required. Install: `pip install -r requirements.txt`
 - **本地与云端差异**：云端 Cursor 在固定根目录、依赖齐全的环境下跑；本地 checkout 后若未装依赖、未建 `data/`/`config` 或未在根目录启动，容易出现 ImportError 或找不到配置。建议在项目根目录执行一次：`python3 scripts/init_pfa_env.py`，再运行下面命令。详见 `docs/local-environment.md`。
 - **PFA v2（Next.js + FastAPI）**: 分支 `pfa-v2-dev`。后端 `uvicorn backend.main:app --port 8000`，前端 `cd frontend && npm run dev` → http://localhost:3000。详见 `docs/pfa-v2-quickstart.md`。
-- **Dash UI（推荐）**: `python3 app_dash/app.py` → http://127.0.0.1:8050 — 传统 AI Chat 风格对话页、持仓大盘、综合早报、分析中心、数据源配置
-- **Streamlit UI（旧版）**: `streamlit run app/pfa_dashboard.py --server.port 8501`
 - **Scheduler (auto briefing + alerts)**: `python -m pfa.scheduler --run-now`
 - **Alert scan only**: `python -c "from pfa.alert_engine import run_alert_scan; run_alert_scan()"`
 - Portfolio validation: `python3 scripts/validate_portfolio.py config/my-portfolio.json`
 - News fetching: `python3 scripts/fetch_holding_news.py` (East Money API)
 - RSS fetching: `python3 scripts/fetch_rss.py` (from `channels.rss_urls` in portfolio)
 - Deep analysis: `python3 scripts/fetch_holding_news.py --analyze` (requires `DASHSCOPE_API_KEY`)
-- **Control Center** (Dash): 持仓大盘 / 综合早报 / 分析中心 / 数据源配置；Streamlit 版本仍可用
+- **Control Center**: Next.js pages: 持仓大盘 / 综合早报 / 分析中心 / 数据源配置
 - Data stored in `data/store/` (unified layer) and `data/raw/` (legacy).
-
-### Pages (Dash)
-
-| Page | URL path | Description |
-|---|---|---|
-| 持仓大盘 | `/` | Holdings table + allocation chart + Ask PFA AI chat (streaming) + entry modal |
-| 综合早报 | `/briefing` | Generate briefing, sentiment + must-reads |
-| 分析中心 | `/analysis` | Scout/Analyst/Auditor console + chat |
-| 数据源配置 | `/settings` | RSS add/remove, data sources |
-
-### Key files (Dash UI)
-
-| File | Purpose |
-|---|---|
-| `app_dash/app.py` | Dash app entry |
-| `app_dash/layout.py` | Root layout, routing |
-| `app_dash/components/chat.py` | AI Chat (streaming) |
-| `app_dash/components/entry_modal.py` | Add holdings modal |
-| `app_dash/pages/portfolio.py` | Holdings + chat |
-| `pfa/ai_chat.py` | AI logic (shared, no Streamlit) |
 
 ### Key modules
 

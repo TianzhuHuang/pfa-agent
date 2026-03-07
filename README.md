@@ -11,16 +11,16 @@ pip install -r requirements.txt
 # 2. Initialize (creates data/, config/, sample portfolio)
 python3 scripts/init_pfa_env.py
 
-# 3. Run Dash UI
-python3 app_dash/app.py
+# 3. Run backend + frontend
+uvicorn backend.main:app --reload --port 8000
+cd frontend && npm run dev
 ```
 
-Open http://127.0.0.1:8050
+Open http://localhost:3000
 
 ## UI
 
-- **Dash** (recommended): `python3 app_dash/app.py` — Traditional AI Chat, holdings, briefing, analysis
-- **Streamlit** (legacy): `streamlit run app/pfa_dashboard.py --server.port 8501`
+- **Next.js + FastAPI**: `frontend` + `backend` (single maintained UI)
 
 ## Environment
 

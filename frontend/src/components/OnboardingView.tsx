@@ -90,6 +90,27 @@ export function OnboardingView({ onOpenEntry }: OnboardingViewProps) {
           </div>
         </div>
 
+        {/* AI 能做什么 — 首登价值感知 */}
+        <div className="mb-8 rounded-xl border border-[#222] bg-[#0a0a0a]/80 px-5 py-4 text-left">
+          <div className="mb-2 text-sm font-semibold text-[#22c55e]">AI 能做什么</div>
+          <p className="mb-3 text-sm text-[#9ca3af] leading-relaxed">
+            PFA 会基于你的持仓，自动扫描新闻、财报与舆情，识别风险与机会。
+          </p>
+          <div className="space-y-2 text-xs text-[#6b7280]">
+            <div className="flex items-start gap-2">
+              <span className="shrink-0 text-[#22c55e]">·</span>
+              <span>示例：某白酒股近 7 日舆情偏多，主要驱动：行业景气度回升</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="shrink-0 text-[#22c55e]">·</span>
+              <span>示例：某科技股财报披露后，分析师上调目标价</span>
+            </div>
+          </div>
+          <p className="mt-3 text-xs font-medium text-[#22c55e]/90">
+            录入持仓后，AI 将为你生成专属分析。
+          </p>
+        </div>
+
         {/* Feature Highlights — Ghost List（不可点击的信息展示） */}
         <div className="mb-12 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-8">
           {FEATURES.map((f) => (
@@ -137,7 +158,7 @@ export function OnboardingView({ onOpenEntry }: OnboardingViewProps) {
 
         {/* Hint */}
         <p className="text-xs text-[#666]">
-          录入后，PFA 将自动激活您的 AI 简报和资产分布看板。
+          录入后，PFA 将自动激活您的 AI 简报和资产分布看板，并为你分析持仓风险与机会。
         </p>
       </div>
     </div>

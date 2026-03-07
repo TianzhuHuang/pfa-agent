@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ResponsiveContainer,
@@ -37,18 +37,23 @@ export default function AnalysisPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    apiFetch(`${API_BASE}/api/portfolio?display_currency=${displayCurrency}`)
-      .then((r) => r.json())
-      .then(setVal)
-      .catch(() => setVal(null))
-      .finally(() => setLoading(false));
-  }, [displayCurrency]);
-
   useEffect(() => {
-    setLoading(true);
-    refresh();
-  }, [refresh]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/api/portfolio?display_currency=${displayCurrency}`);
+        const d = await r.json();
+        if (!cancelled) setVal(d);
+      } catch {
+        if (!cancelled) setVal(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [displayCurrency]);
 
   const targetCur = val?.target_currency ?? displayCurrency;
   const sym = targetCur === "original" ? "¥" : currencySymbol(targetCur);

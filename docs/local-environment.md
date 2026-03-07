@@ -14,15 +14,15 @@
 
 ## 若出现 ImportError: cannot import name 'FeedItem' / 'load_all_feed_items' / 'load_all_analyses'
 
-1. **确认在项目根目录运行**（不要在其他目录执行 `streamlit run`）：
+1. **确认在项目根目录运行**（不要在其他目录执行后端或脚本）：
    ```bash
    cd /path/to/PFA
-   streamlit run app/pfa_dashboard.py --server.port 8501
+   uvicorn backend.main:app --reload --port 8000
    ```
 2. **清除 Python 缓存**（避免旧 .pyc 覆盖新代码）：
    ```bash
    cd /path/to/PFA
-   rm -rf pfa/__pycache__ pfa/data/__pycache__ app/__pycache__ agents/__pycache__
+    rm -rf pfa/__pycache__ pfa/data/__pycache__ agents/__pycache__
    ```
 3. **确认 store 已正确导出**（在项目根目录执行）：
    ```bash
@@ -47,30 +47,6 @@ python3 scripts/init_pfa_env.py
 4. 可选：安装 Playwright Chromium 驱动（用于本地浏览器 E2E 测试）
 
 ## 正确启动控制中心
-
-### Streamlit（原有）
-
-务必在**项目根目录**启动 Streamlit，这样 `app/pfa_dashboard.py` 里插入的 `ROOT` 和 `sys.path` 才会正确：
-
-```bash
-cd /path/to/PFA
-streamlit run app/pfa_dashboard.py --server.port 8501
-```
-
-浏览器打开：http://localhost:8501
-
-### Dash（新 UI）
-
-Dash 版本提供传统 AI Chat 风格对话页，运行：
-
-```bash
-cd /path/to/PFA
-python3 app_dash/app.py
-```
-
-浏览器打开：http://127.0.0.1:8050  
-
-若需「执行分析」中的深度分析与 Auditor 审核，请设置环境变量：`DASHSCOPE_API_KEY`（必选）、`OPENAI_API_KEY`（可选，用于 Auditor 首选模型）。参见 `AGENTS.md` 中 Environment variables 小节。
 
 ### Next.js 前端 + FastAPI 后端
 
@@ -138,6 +114,16 @@ cd frontend && npm run dev
 ### 快速初始化
 
 执行 `bash scripts/init_local_supabase.sh` 可自动从模板复制 `.env` 和 `frontend/.env.local`（不覆盖已有文件），然后按提示填入 Supabase 变量。
+
+## 机房部署与价格代理（阿里云等）
+
+在阿里云等机房中，新浪/东财/Yahoo/Binance/CoinGecko 等价格接口常被拦截（403 或不可达），而腾讯 A/港股接口通常可用。为在机房环境正常获取实时行情与估值，可配置 **Cloudflare Workers 代理**：
+
+- **环境变量**: `PFA_PROXY_BASE`，例如 `https://pfa-proxy.huangtianzhu5746.workers.dev/`
+- 设置后，东财/新浪/Yahoo/Binance/CoinGecko 的请求经该 Worker 转发；腾讯 A/港股保持直连；数字货币优先走 OKX（直连），再经代理回退 Binance/CoinGecko
+- 价格探测脚本在配置代理后会自动经 Worker 发起（除腾讯外）：`python3 scripts/probe_price_apis.py`
+
+详见 **docs/data-sources.md** §3.6（机房代理与 PFAIntelEngine）。
 
 ## 多 Agent 架构与入口说明
 

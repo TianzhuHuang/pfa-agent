@@ -13,6 +13,8 @@ import re
 import requests
 from typing import Dict, List, Optional
 
+from pfa.proxy_fetch import get as proxy_get, use_proxy
+
 TENCENT_QUOTE_URL = "http://qt.gtimg.cn/q="
 TENCENT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -209,12 +211,10 @@ def _fetch_eastmoney_ashares(holdings: List[Dict]) -> Dict[str, Dict]:
         if not secid:
             continue
         try:
-            r = requests.get(
-                EASTMONEY_QUOTE_URL,
-                params={"secid": secid},
-                headers=EASTMONEY_HEADERS,
-                timeout=10,
-            )
+            if use_proxy():
+                r = proxy_get(EASTMONEY_QUOTE_URL, params={"secid": secid}, headers=EASTMONEY_HEADERS, timeout=10)
+            else:
+                r = requests.get(EASTMONEY_QUOTE_URL, params={"secid": secid}, headers=EASTMONEY_HEADERS, timeout=10)
             r.raise_for_status()
             j = r.json()
         except Exception as e:
@@ -344,12 +344,13 @@ def _fetch_yahoo_hk_us(holdings: List[Dict]) -> Dict[str, Dict]:
         if not yahoo_sym:
             continue
         try:
-            r = requests.get(
-                YAHOO_CHART_URL.format(symbol=yahoo_sym),
-                params={"interval": "1d", "range": "1d"},
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-                timeout=10,
-            )
+            url = YAHOO_CHART_URL.format(symbol=yahoo_sym)
+            params = {"interval": "1d", "range": "1d"}
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            if use_proxy():
+                r = proxy_get(url, params=params, headers=headers, timeout=10)
+            else:
+                r = requests.get(url, params=params, headers=headers, timeout=10)
             r.raise_for_status()
             data = r.json()
         except Exception as e:
@@ -382,7 +383,10 @@ def _fetch_sina_quotes(code_map: Dict[str, str]) -> Dict[str, Dict]:
         return {}
     try:
         url = SINA_HQ_URL + ",".join(code_map.keys())
-        resp = requests.get(url, headers=SINA_HEADERS, timeout=8)
+        if use_proxy():
+            resp = proxy_get(url, headers=SINA_HEADERS, timeout=8)
+        else:
+            resp = requests.get(url, headers=SINA_HEADERS, timeout=8)
         resp.encoding = "gbk"
         if resp.status_code != 200:
             _log.warning("Sina API returned status %s", resp.status_code)

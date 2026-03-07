@@ -60,10 +60,7 @@
 
 ### 3.5 投研面板
 
-- **启动**: `streamlit run app/pfa_dashboard.py --server.port 8501`
-- **持仓管理**: 可编辑持仓表格 + Schema 校验
-- **投研看板**: 按标的查看新闻 + 通义千问深度分析
-- **分析存档**: 按日期回溯历史分析记录
+投研面板已迁移至 Next.js + FastAPI（`frontend/` + `backend/`）。
 
 ### 3.6 多源价格 API（Phase 2 里程碑）
 
@@ -71,16 +68,33 @@
 
 | 资产类型 | market 值 | 数据源 | 模块 |
 |----------|-----------|--------|------|
-| A 股 | A | 东方财富 push2.eastmoney.com 为主，新浪 hq.sinajs.cn 为替补 | pfa/realtime_quote.py |
-| 港股 | HK | 新浪财经 | pfa/realtime_quote.py |
-| 美股 | US | 新浪财经 | pfa/realtime_quote.py |
-| 数字货币 | OT / CRYPTO / account_type=数字货币 | Binance 优先，CoinGecko 回退 | pfa/crypto_quote.py |
+| A 股 | A | 腾讯优先（机房首选），东方财富/新浪回退 | pfa/realtime_quote.py |
+| 港股 | HK | 腾讯优先，新浪/Yahoo 回退 | pfa/realtime_quote.py |
+| 美股 | US | 新浪优先，Yahoo 回退 | pfa/realtime_quote.py |
+| 数字货币 | OT / CRYPTO / account_type=数字货币 | OKX 优先，Binance/CoinGecko 回退 | pfa/crypto_quote.py |
 | 新加坡股 | SGX | Yahoo Finance (T14.SI) | pfa/sgx_quote.py |
 
-- **Binance**: `https://api.binance.com/api/v3/ticker/price`，国内可能被墙，失败时回退 CoinGecko
-- **CoinGecko**: `https://api.coingecko.com/api/v3/simple/price`，支持主流币种
+- **OKX**: `https://www.okx.com/api/v5/market/ticker?instId={SYM}-USDT`，数字货币首选，直连
+- **Binance**: `https://api.binance.com/api/v3/ticker/price`，机房易被墙，配置代理后经 Worker
+- **CoinGecko**: `https://api.coingecko.com/api/v3/simple/price`，支持主流币种，可经代理
 - **Yahoo Finance**: `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}`，SGX 标的使用 `.SI` 后缀（如 T14.SI）
-- **代理**: 生产环境在国内时，可配置 `HTTP_PROXY` / `HTTPS_PROXY` 以访问 Binance、CoinGecko、Yahoo
+- **传统代理**: 未配置 `PFA_PROXY_BASE` 时，可配置 `HTTP_PROXY` / `HTTPS_PROXY` 以访问 Binance、CoinGecko、Yahoo
+
+#### 机房代理（Cloudflare Workers）
+
+在阿里云等机房环境下，新浪/东财/Yahoo/Binance/CoinGecko 常返回 403 或不可达，**腾讯**通常可用。通过 Cloudflare Workers 做 HTTP 代理可打通上述接口：
+
+- **环境变量**: `PFA_PROXY_BASE`，例如 `https://pfa-proxy.huangtianzhu5746.workers.dev/`（末尾斜杠可选）
+- **行为**: 设置后，东财/新浪/Yahoo/Binance/CoinGecko 的请求经 Worker 转发（`GET {PFA_PROXY_BASE}?url={encoded_target_url}`）；**腾讯 A/港股保持直连**
+- **实现**: `pfa/proxy_fetch.py` 提供 `get(url, params=..., headers=..., timeout=...)`，未设置 `PFA_PROXY_BASE` 时与 `requests.get` 行为一致
+
+#### PFAIntelEngine（双轨制行情引擎）
+
+- **模块**: `pfa/market_data_engine.py`
+- **用途**: 标准化价格接口，返回 `{ symbol, price, source, updated_at }`，便于「高净值资产追踪」等扩展
+- **双轨**: 数字货币走 **OKX**；港/美/SGX 走 **Yahoo**（经 `PFA_PROXY_BASE` 代理）
+- **接口**: `PFAIntelEngine().get_multiple_prices(symbols_list)`，`symbols_list` 每项为 `{ symbol, market }`，失败项为 `None`
+- **与估值衔接**: 配置了 `PFA_PROXY_BASE` 时，`get_realtime_prices` 会对仍缺失的 HK/US/SGX/数字货币 用 PFAIntelEngine 补全，无需改前端即可在机房获得实时盈亏
 
 ### 3.7 价格接口探测脚本（机房环境选源）
 
@@ -90,7 +104,8 @@
 python3 scripts/probe_price_apis.py
 ```
 
-探测接口：腾讯财经、网易财经、新浪、东方财富、Yahoo、Binance、CoinGecko。输出按速度排序的成功接口，便于选择主/备数据源。
+- **代理模式**: 若设置了 `PFA_PROXY_BASE`，除腾讯外所有探测请求（网易/新浪/东财/Yahoo/Binance/CoinGecko）均经 Worker 发起；腾讯仍直连。输出标题会标注「经 PFA_PROXY_BASE 代理」。
+- 探测接口：腾讯财经、网易财经、新浪、东方财富、Yahoo、Binance、CoinGecko。输出按速度排序的成功接口，便于选择主/备数据源。
 
 ---
 

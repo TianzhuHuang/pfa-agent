@@ -12,11 +12,13 @@ import os
 import requests
 from typing import Dict, List
 
+from pfa.proxy_fetch import get as proxy_get, use_proxy
+
 logger = logging.getLogger("pfa.sgx_quote")
 
 
 def _get_proxies() -> Dict[str, str | None]:
-    """HTTP 代理：生产环境在国内时可配置。"""
+    """HTTP 代理：生产环境在国内时可配置（PFA_PROXY_BASE 未设置时）。"""
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
     if proxy:
         return {"http": proxy, "https": proxy}
@@ -54,13 +56,13 @@ def get_sgx_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
         if not yahoo_sym:
             continue
         try:
-            resp = requests.get(
-                YAHOO_CHART_URL.format(symbol=yahoo_sym),
-                params={"interval": "1d", "range": "1d"},
-                headers={"User-Agent": "Mozilla/5.0"},
-                timeout=8,
-                proxies=_get_proxies(),
-            )
+            url = YAHOO_CHART_URL.format(symbol=yahoo_sym)
+            params = {"interval": "1d", "range": "1d"}
+            headers = {"User-Agent": "Mozilla/5.0"}
+            if use_proxy():
+                resp = proxy_get(url, params=params, headers=headers, timeout=8)
+            else:
+                resp = requests.get(url, params=params, headers=headers, timeout=8, proxies=_get_proxies())
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:
