@@ -20,9 +20,15 @@ import json
 import re
 import sys
 import time
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
+
+# 保证从 scripts/ 运行时也能找到 pfa 包（repo 根目录加入 path）
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 import requests
 

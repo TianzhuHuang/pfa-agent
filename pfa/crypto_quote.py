@@ -1,8 +1,7 @@
 """
-数字货币实时行情 — OKX 优先，Binance/CoinGecko 回退
+数字货币实时行情 — Finnhub / OKX / Gate.io / Binance / CoinGecko 多链路
 
-免费 API，无需 key，支持 BTC/ETH/USDT 等主流币种。
-OKX 可直连；Binance/CoinGecko 在机房易被墙，配置 PFA_PROXY_BASE 时经 Worker 代理。
+国内机房：Finnhub 与 Gate.io 通常可达；OKX/Binance/CoinGecko 可能超时或被墙，按顺序尝试。
 """
 
 from __future__ import annotations
@@ -15,6 +14,10 @@ from typing import Dict, List
 from pfa.proxy_fetch import get as proxy_get, use_proxy
 
 logger = logging.getLogger("pfa.crypto_quote")
+
+FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote"
+FINNHUB_TOKEN_DEFAULT = "d6me301r01qi0ajlt2kgd6me301r01qi0ajlt2l0"
+GATEIO_TICKER_URL = "https://data.gateapi.io/api2/1/ticker/{pair}"
 
 
 def _get_proxies() -> Dict[str, str | None]:
@@ -69,6 +72,61 @@ def _get_crypto_holdings_symbols(holdings: List[Dict]) -> List[str]:
             if sym and (sym in BINANCE_USDT_SYMBOLS or sym in SYMBOL_TO_COINGECKO_ID):
                 crypto_symbols.append(sym)
     return list(dict.fromkeys(crypto_symbols))  # 去重保序
+
+
+def _finnhub_token() -> str:
+    return (os.environ.get("FINNHUB_API_KEY") or os.environ.get("FINNHUB_TOKEN") or FINNHUB_TOKEN_DEFAULT).strip()
+
+
+def get_crypto_quotes_finnhub(holdings: List[Dict]) -> Dict[str, Dict]:
+    """数字货币：Finnhub BINANCE:XXXUSDT，国内机房通常可达。"""
+    symbols = _get_crypto_holdings_symbols(holdings)
+    if not symbols:
+        return {}
+    results = {}
+    token = _finnhub_token()
+    for sym in symbols:
+        try:
+            r = requests.get(
+                FINNHUB_QUOTE_URL,
+                params={"symbol": f"BINANCE:{sym}USDT", "token": token},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=10,
+            )
+            r.raise_for_status()
+            data = r.json()
+            c = data.get("c")
+            if c is None:
+                continue
+            results[sym] = {"current": float(c), "percent": 0, "name": sym, "source": "finnhub"}
+        except Exception as e:
+            logger.debug("Finnhub crypto %s: %s", sym, e)
+    if results:
+        logger.info("Finnhub: fetched %d crypto prices", len(results))
+    return results
+
+
+def get_crypto_quotes_gateio(holdings: List[Dict]) -> Dict[str, Dict]:
+    """数字货币：Gate.io 公开接口，国内机房通常较稳。"""
+    symbols = _get_crypto_holdings_symbols(holdings)
+    if not symbols:
+        return {}
+    results = {}
+    for sym in symbols:
+        try:
+            url = GATEIO_TICKER_URL.format(pair=f"{sym.lower()}_usdt")
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            last = data.get("last")
+            if last is None:
+                continue
+            results[sym] = {"current": float(last), "percent": 0, "name": sym, "source": "gateio"}
+        except Exception as e:
+            logger.debug("Gate.io %s: %s", sym, e)
+    if results:
+        logger.info("Gate.io: fetched %d crypto prices", len(results))
+    return results
 
 
 def get_crypto_quotes_okx(holdings: List[Dict]) -> Dict[str, Dict]:
@@ -149,7 +207,7 @@ def get_crypto_quotes_binance(holdings: List[Dict]) -> Dict[str, Dict]:
 
 def get_crypto_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
     """
-    获取数字货币实时价格。OKX 优先，失败时回退 Binance，再回退 CoinGecko。
+    获取数字货币实时价格。Finnhub → OKX → Gate.io → Binance → CoinGecko，按可联通链路依次尝试。
 
     Args:
         holdings: 持仓列表，筛选 market="OT" 或 market="CRYPTO" 或 account="数字货币" 的项
@@ -161,12 +219,23 @@ def get_crypto_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
     if not symbols:
         return {}
 
-    # 先试 OKX，再 Binance，再 CoinGecko
-    results = get_crypto_quotes_okx(holdings)
+    # Finnhub → OKX → Gate.io → Binance → CoinGecko，只补缺失
+    results = get_crypto_quotes_finnhub(holdings)
     missing = [s for s in symbols if s not in results]
     if missing:
-        results.update(get_crypto_quotes_binance(holdings))
+        for s, v in get_crypto_quotes_okx(holdings).items():
+            if s in missing:
+                results[s] = v
     missing = [s for s in symbols if s not in results]
+    if missing:
+        for s, v in get_crypto_quotes_gateio(holdings).items():
+            if s in missing:
+                results[s] = v
+    missing = [s for s in symbols if s not in results]
+    if missing:
+        for s, v in get_crypto_quotes_binance(holdings).items():
+            if s in missing:
+                results[s] = v
     missing = [s for s in symbols if s not in results and s in SYMBOL_TO_COINGECKO_ID]
     if not missing:
         return results

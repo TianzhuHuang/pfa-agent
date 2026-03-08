@@ -1,19 +1,22 @@
 """
-实时行情 API — 腾讯财经 / 东方财富 / 新浪财经 / Yahoo Finance
+实时行情 API — 腾讯(A/港) / Finnhub(美股) / 东方财富 / 新浪 / Yahoo
 
-ECS 等机房 IP 常被新浪、东财、Yahoo 拦截，腾讯 qt.gtimg.cn 对云服务器相对宽松。
 A 股、港股：腾讯优先，东财/新浪/Yahoo 回退。
-美股：新浪优先，Yahoo 回退。
+美股：Finnhub 优先（国内机房通常可达），新浪/Yahoo 回退。
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 import requests
 from typing import Dict, List, Optional
 
 from pfa.proxy_fetch import get as proxy_get, use_proxy
+
+FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote"
+FINNHUB_TOKEN_DEFAULT = "d6me301r01qi0ajlt2kgd6me301r01qi0ajlt2l0"
 
 TENCENT_QUOTE_URL = "http://qt.gtimg.cn/q="
 TENCENT_HEADERS = {
@@ -332,6 +335,44 @@ def _to_yahoo_symbol(symbol: str, market: str) -> Optional[str]:
     return None
 
 
+def _fetch_finnhub_us(holdings: List[Dict]) -> Dict[str, Dict]:
+    """美股：Finnhub quote API，国内机房通常可达。"""
+    token = (os.environ.get("FINNHUB_API_KEY") or os.environ.get("FINNHUB_TOKEN") or FINNHUB_TOKEN_DEFAULT).strip()
+    results = {}
+    for h in holdings:
+        if str(h.get("market", "")).upper() != "US":
+            continue
+        sym = (h.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        try:
+            r = requests.get(
+                FINNHUB_QUOTE_URL,
+                params={"symbol": sym, "token": token},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=10,
+            )
+            r.raise_for_status()
+            data = r.json()
+            c = data.get("c")  # current price
+            if c is None:
+                continue
+            pc = data.get("pc") or c
+            pct = ((float(c) - float(pc)) / float(pc) * 100) if pc else 0
+            results[sym] = {
+                "current": float(c),
+                "percent": round(pct, 2),
+                "change": round(float(c) - float(pc), 2),
+                "name": h.get("name") or sym,
+                "source": "finnhub",
+            }
+        except Exception as e:
+            _log.debug("Finnhub US %s: %s", sym, e)
+    if results:
+        _log.info("Finnhub US: fetched %d quotes", len(results))
+    return results
+
+
 def _fetch_yahoo_hk_us(holdings: List[Dict]) -> Dict[str, Dict]:
     """港股、美股：Yahoo Finance（新浪 403 时回退）。"""
     results = {}
@@ -398,7 +439,7 @@ def _fetch_sina_quotes(code_map: Dict[str, str]) -> Dict[str, Dict]:
 
 
 def get_realtime_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
-    """Get real-time quotes. A股/港股: 腾讯优先（ECS 机房首选），东财/新浪回退；美股: 新浪优先，Yahoo 回退。"""
+    """Get real-time quotes. A股/港股: 腾讯优先；美股: Finnhub 优先，新浪/Yahoo 回退。"""
     ashare_holdings = [h for h in holdings if h.get("market") == "A"]
     hk_holdings = [h for h in holdings if h.get("market") == "HK"]
     us_holdings = [h for h in holdings if h.get("market") == "US"]
@@ -436,13 +477,16 @@ def get_realtime_quotes(holdings: List[Dict]) -> Dict[str, Dict]:
             _log.info("腾讯/新浪未命中 %d 只港股，回退 Yahoo", len(hk_missing))
             results.update(_fetch_yahoo_hk_us(hk_missing))
 
-    # 美股：新浪优先，Yahoo 回退（ECS 上两者均可能 403）
+    # 美股：Finnhub 优先（国内机房通常可达），新浪/Yahoo 回退
     if us_holdings:
-        code_map = {_to_sina_code(h["symbol"], "US"): h["symbol"] for h in us_holdings}
-        results.update(_fetch_sina_quotes(code_map))
+        results.update(_fetch_finnhub_us(us_holdings))
         us_missing = [h for h in us_holdings if h["symbol"] not in results]
         if us_missing:
-            _log.info("新浪未命中 %d 只美股，回退 Yahoo", len(us_missing))
+            code_map = {_to_sina_code(h["symbol"], "US"): h["symbol"] for h in us_missing}
+            results.update(_fetch_sina_quotes(code_map))
+            us_missing = [h for h in us_missing if h["symbol"] not in results]
+        if us_missing:
+            _log.info("Finnhub/新浪未命中 %d 只美股，回退 Yahoo", len(us_missing))
             results.update(_fetch_yahoo_hk_us(us_missing))
 
     return results

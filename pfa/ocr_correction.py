@@ -10,6 +10,16 @@ from typing import Any, Dict, List
 
 PRICE_DEVIATION_THRESHOLD = 0.05  # 5%
 
+# 已知加密货币 symbol，此类不参与「以名称搜股票」纠错，避免 BTC/ETH 被东方财富结果覆盖
+CRYPTO_SYMBOLS = frozenset({"BTC", "ETH", "USDT", "USDC", "BNB", "XRP", "ADA", "DOGE", "SOL", "DOT", "MATIC", "LTC", "SHIB", "TRX", "AVAX", "LINK", "UNI", "ATOM", "XMR", "ETC"})
+
+
+def _is_crypto_holding(h: Dict[str, Any]) -> bool:
+    market = str(h.get("market", "")).upper()
+    if market in ("CRYPTO", "OT"):
+        return True
+    return (h.get("symbol") or "").strip().upper() in CRYPTO_SYMBOLS
+
 
 def _normalize_symbol_for_compare(symbol: str, market: str) -> str:
     """标准化 symbol 用于比较：去除后缀、港股 5 位补全。"""
@@ -40,6 +50,9 @@ def validate_and_correct_ocr_holdings(holdings: List[Dict[str, Any]]) -> List[Di
     out = []
     for h in holdings:
         h = dict(h)
+        if _is_crypto_holding(h):
+            out.append(h)
+            continue
         name = (h.get("name") or "").strip()
         if not name:
             out.append(h)
