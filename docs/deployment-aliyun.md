@@ -2,6 +2,72 @@
 
 面向首次部署用户，从阿里云控制台配置到最终访问的完整步骤。
 
+## 部署流程优化（阿里云严苛网络）
+
+阿里云上海等机房对 GitHub / 部分外网 API 连通性较差（如 `git pull` 超时、OKX/Worker 红）。建议采用以下方式，避免在 ECS 上直接拉 GitHub：
+
+### 方式一：本地开发 + rsync 同步（推荐日常更新）
+
+在 **Mac 本地**用 Cursor 开发，改完后用 rsync 把代码推到 ECS，**不在 ECS 上执行 git pull**。
+
+```bash
+# 在项目根目录执行，将 你的ECS公网IP 换成实际 IP
+export ALIYUN_HOST=你的ECS公网IP
+rsync -avz --exclude node_modules --exclude .next --exclude __pycache__ --exclude .git --exclude .env \
+  . root@${ALIYUN_HOST}:/opt/pfa/
+```
+
+或使用脚本（需先设置 `ALIYUN_HOST` 或传入参数）：
+
+```bash
+./scripts/sync-to-aliyun.sh [root@你的ECS公网IP]
+```
+
+同步完成后，SSH 登录 ECS，在 `/opt/pfa` 下执行 `docker compose --env-file .env up -d --build` 或重启已有容器。
+
+### 方式二：本地构建 Docker 镜像 → 推送到 ACR → 阿里云拉取
+
+在**本地**构建镜像并推送到**阿里云容器镜像服务（ACR）**，ECS 从 ACR 拉取（同地域速度很快），无需在 ECS 上访问 GitHub 或长时间构建。
+
+1. **本地**：安装 Docker，登录 ACR（替换为你的 ACR 地址和命名空间）  
+   ```bash
+   # 阿里云 ACR 示例：registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa
+   docker login --username=你的阿里云账号 registry.cn-shanghai.aliyuncs.com
+   ```
+
+2. **本地**：构建并打标签、推送  
+   ```bash
+   cd /path/to/PFA
+   docker compose --env-file .env.production.example build   # 或使用你的 .env
+   docker tag pfa-backend:latest registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa-backend:latest
+   docker tag pfa-frontend:latest registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa-frontend:latest
+   docker push registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa-backend:latest
+   docker push registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa-frontend:latest
+   ```
+
+3. **ECS 上**：拉取并启动（需先在 ECS 创建 `/opt/pfa/.env` 和上述 `docker-compose.override.yml`）  
+   ```bash
+   docker login --username=你的阿里云账号 registry.cn-shanghai.aliyuncs.com
+   cd /opt/pfa
+   docker compose --env-file .env pull
+   docker compose --env-file .env up -d --no-build
+   ```
+
+若使用 ACR，建议在 ECS 上放一份只含 `image: ...` 的 `docker-compose.override.yml`，不再在 ECS 上执行 `build`，仅 `pull` + `up`。示例（替换为你的 ACR 地址）：
+
+```yaml
+# docker-compose.override.yml（仅在使用 ACR 时在 ECS 上创建）
+services:
+  backend:
+    image: registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa-backend:latest
+  frontend:
+    image: registry.cn-shanghai.aliyuncs.com/你的命名空间/pfa-frontend:latest
+```
+
+首次使用同步脚本需可执行权限：`chmod +x scripts/sync-to-aliyun.sh`。
+
+---
+
 ## 架构示意
 
 ```

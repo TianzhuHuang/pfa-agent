@@ -883,7 +883,7 @@ export default function DashboardPage() {
 
       {/* 右侧抽屉：展开时滑入 */}
       <div
-        className={`fixed right-0 top-12 z-50 flex h-[calc(100vh-48px)] w-full sm:max-w-[400px] md:max-w-[480px] flex-col border-l border-white/10 bg-black shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed right-0 top-12 z-50 flex h-[calc(100vh-48px)] w-full sm:max-w-[400px] md:max-w-[480px] flex-col border-l border-white/10 bg-[#0A0F1E] shadow-2xl transition-transform duration-300 ease-out ${
           chatDrawerOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

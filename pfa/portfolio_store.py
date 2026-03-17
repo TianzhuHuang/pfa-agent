@@ -70,12 +70,21 @@ def _empty_portfolio() -> Dict[str, Any]:
     }
 
 
+def _is_force_local_storage() -> bool:
+    """本地模式（X-PFA-Local-Mode: 1）时使用本地 JSON/SQLite，不要求登录。"""
+    try:
+        from backend.context import get_force_local_storage
+        return get_force_local_storage()
+    except ImportError:
+        return False
+
+
 def load_portfolio(user_id: Optional[str] = None) -> Dict[str, Any]:
     uid = _resolve_user_id(user_id)
     try:
         from backend.database.supabase_store import use_supabase, load_portfolio_db, save_portfolio_db
-        if use_supabase():
-            # Supabase 已配置：完全禁用 JSON 路径
+        if use_supabase() and not _is_force_local_storage():
+            # Supabase 已配置且非本地模式：完全禁用 JSON 路径
             if uid in ("admin", ""):
                 return _empty_portfolio()
             try:
@@ -161,7 +170,7 @@ def save_portfolio(data: Dict[str, Any], user_id: Optional[str] = None) -> None:
     uid = _resolve_user_id(user_id)
     try:
         from backend.database.supabase_store import use_supabase, save_portfolio_db
-        if use_supabase():
+        if use_supabase() and not _is_force_local_storage():
             if uid in ("admin", ""):
                 _log.warning("save_portfolio: Supabase 已配置但 user_id=admin，拒绝静默 no-op，需用户登录")
                 raise AuthRequiredError("请重新登录后再操作")

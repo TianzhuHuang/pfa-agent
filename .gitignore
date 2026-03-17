@@ -29,5 +29,5 @@ venv/
 *.swp
 *.swo
 
-# 可选：Cursor 计划与缓存（若不想提交可取消注释）
-# .cursor/
+# Cursor：计划与缓存不入库
+.cursor/

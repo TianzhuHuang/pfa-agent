@@ -33,5 +33,10 @@ export async function apiFetch(
     }
   }
 
+  // 本地模式（跳过登录）：让后端使用本地 JSON/SQLite 存储，不要求 Supabase
+  if (typeof document !== "undefined" && document.cookie.includes("pfa_local_mode=1")) {
+    headers.set("X-PFA-Local-Mode", "1");
+  }
+
   return fetch(input, { ...init, headers });
 }

@@ -56,6 +56,7 @@ export function Header() {
 
   const NAV_ITEMS = [
     { href: "/", label: "Portfolio" },
+    { href: "/chat-preview", label: "Chat" },
     { href: "/briefing", label: "Briefing" },
     // { href: "/analysis", label: "Analysis" }, // 暂时隐藏
     { href: "/settings", label: "Settings" },
@@ -68,7 +69,7 @@ export function Header() {
     (href !== "/" && pathname?.startsWith(href));
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex h-12 items-center gap-2 border-b border-white/5 bg-black/95 px-6 backdrop-blur-sm">
+    <header className="fixed top-0 left-0 right-0 z-50 flex h-12 items-center gap-2 border-b border-white/5 bg-[#0A0F1E]/95 px-6 backdrop-blur-sm">
       <Link href="/" className="flex items-center gap-2">
         <div className="relative h-8 w-8 overflow-hidden rounded-full bg-transparent">
           <Image

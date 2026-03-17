@@ -404,14 +404,20 @@ class ParseFileRequest(BaseModel):
 @router.post("/portfolio/ocr")
 def ocr_image(req: OcrRequest):
     """OCR 识别持仓截图，返回识别结果。contents 为 data:image/xxx;base64,... 格式。"""
+    import base64
+    import os
+    import time
+
     contents = req.contents
     if not contents or "base64," not in contents:
         return {"status": "error", "error": "无效的图片数据"}
+
+    total_start = time.monotonic()
+    timings = {}
     try:
-        import base64
-        import os
         if not os.environ.get("DASHSCOPE_API_KEY"):
             return {"status": "error", "error": "DASHSCOPE_API_KEY 未设置，请在项目根目录 .env 中配置"}
+        decode_start = time.monotonic()
         _, b64 = contents.split(",", 1)
         mime = "image/png"
         if "jpeg" in contents or "jpg" in contents:
@@ -419,22 +425,59 @@ def ocr_image(req: OcrRequest):
         elif "webp" in contents:
             mime = "image/webp"
         img_bytes = base64.b64decode(b64)
+        timings["decode_ms"] = (time.monotonic() - decode_start) * 1000.0
         if len(img_bytes) > 10 * 1024 * 1024:  # 10MB
             return {"status": "error", "error": "图片过大，请压缩后重试"}
-        from pfa.screenshot_ocr import extract_holdings_from_image
+        from pfa.screenshot_ocr import extract_holdings_from_image, extract_text_from_image
+
+        holdings_start = time.monotonic()
         r = extract_holdings_from_image(img_bytes, mime)
+        timings["holdings_ocr_ms"] = (time.monotonic() - holdings_start) * 1000.0
         if r.get("status") == "ok" and r.get("holdings"):
             out = {"status": "ok", "holdings": r["holdings"]}
             if r.get("available_balance") is not None:
                 out["available_balance"] = r["available_balance"]
+            if os.environ.get("PFA_DEBUG_TIMING"):
+                timings["total_ms"] = (time.monotonic() - total_start) * 1000.0
+                out["debug_timings"] = {k: round(v, 1) for k, v in timings.items()}
             return out
-        return {"status": "error", "error": r.get("error", "识别失败")}
+        # 无持仓（如新闻截图）：尝试提取图中文字供对话使用
+        text_start = time.monotonic()
+        text_r = extract_text_from_image(img_bytes, mime)
+        timings["text_ocr_ms"] = (time.monotonic() - text_start) * 1000.0
+        if text_r.get("status") == "ok" and (text_r.get("text") or "").strip():
+            out = {
+                "status": "ok",
+                "holdings": [],
+                "image_text": (text_r.get("text") or "").strip(),
+            }
+            if os.environ.get("PFA_DEBUG_TIMING"):
+                timings["total_ms"] = (time.monotonic() - total_start) * 1000.0
+                out["debug_timings"] = {k: round(v, 1) for k, v in timings.items()}
+            return out
+        err = r.get("error", "识别失败")
+        out = {"status": "error", "error": err}
+        if os.environ.get("PFA_DEBUG_TIMING"):
+            timings["total_ms"] = (time.monotonic() - total_start) * 1000.0
+            out["debug_timings"] = {k: round(v, 1) for k, v in timings.items()}
+        return out
     except Exception as e:
         err_msg = str(e)
         # 便于本地调试，避免返回过长堆栈
         if len(err_msg) > 200:
             err_msg = err_msg[:200] + "..."
-        return {"status": "error", "error": err_msg}
+        out = {"status": "error", "error": err_msg}
+        try:
+            import os as _os  # type: ignore
+            import time as _time  # type: ignore
+
+            if _os.environ.get("PFA_DEBUG_TIMING"):
+                total_ms = (_time.monotonic() - total_start) * 1000.0
+                timings["total_ms"] = total_ms
+                out["debug_timings"] = {k: round(v, 1) for k, v in timings.items()}
+        except Exception:
+            pass
+        return out
 
 
 def _market_to_currency(market: str) -> str:

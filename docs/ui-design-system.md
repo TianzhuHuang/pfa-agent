@@ -199,6 +199,47 @@ Logo: 16px, 600, text-primary
 输入框: 底部固定, border, 圆角 8px
 ```
 
+### PFA 2.0 Chat-First 布局（静奢风主题）
+
+**适用页面**：`/chat-preview` 及未来 Chat-First 主界面。
+
+**配色（Chat-First 主题）**：
+
+| Token | 色值 | 用途 |
+|-------|------|------|
+| `--chat-bg` | `#0A0F1E` | 深海蓝黑背景 |
+| `--chat-accent` | `#D4AF37` | 香槟金，关键线条、呼吸灯、CTA |
+| `--chat-text` | `#E8EAED` | 主文字 |
+| `--chat-muted` | `#9AA0A6` | 辅助说明、占位符 |
+
+**整体结构**：
+
+| 区域 | 形态 | 内容 |
+|------|------|------|
+| 顶部 | 固定 60px 磨砂条 | Context Bar：持仓标签（Ticker · Industry），无价格/盈亏 |
+| 中部 | 居中对话流 | 智能情报流，AI 回复为 Impact Card |
+| 底部 | 浮动输入坞 | 药丸型输入框 + [+] 多模态 |
+
+**Context Bar（上下文感知栏）**：
+
+- 展示：`贵州茅台 · 白酒`、`腾讯 · 社交/游戏`、`NVDA · AI基建` 等标签
+- 禁止：实时股价、盈亏百分比、红绿箭头
+- 交互：AI 分析某资产时，对应标签下方香槟金呼吸灯线条（可选）
+- 实现：`frontend/src/components/chat-preview/ContextBar.tsx`
+
+**Impact Card（影响评估卡片）**：
+
+- 结构：标题（如 `[宏观政策偏差警告]`）+ 影响资产标签（高/中/低相关）+ 三句话逻辑拆解
+- 资产标签可点击，高亮顶部 Context Bar 对应项
+- 实现：`frontend/src/components/chat-preview/ImpactCard.tsx`
+
+**Chat Input Dock（多模态输入坞）**：
+
+- 形态：药丸型（Pill-shaped）或圆角矩形
+- 左侧 [+]：粘贴图片（截图 OCR）、新闻链接、文件
+- 占位提示：如「中东局势升级对我持仓有何影响？」
+- 实现：`frontend/src/components/chat-preview/ChatInputDock.tsx`
+
 ### 登录页
 
 ```

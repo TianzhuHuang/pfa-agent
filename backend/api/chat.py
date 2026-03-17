@@ -36,6 +36,10 @@ class ChatHistoryRequest(BaseModel):
     user_id: Optional[str] = "admin"
 
 
+class FetchLinksRequest(BaseModel):
+    urls: List[str]
+
+
 class TickerChatRequest(BaseModel):
     symbol: str
     messages: List[Dict[str, Any]]
@@ -184,6 +188,7 @@ def chat_stream(req: ChatRequest):
     from pfa.ai_chat import (
         call_ai_stream,
         build_system_prompt,
+        generate_impact_card_from_text,
         parse_trade_command,
         merge_trade_from_followup,
     )
@@ -203,6 +208,8 @@ def chat_stream(req: ChatRequest):
             yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 
     def _generate_inner():
+        # 显式捕获闭包引用，避免嵌套内任何 import/赋值导致 UnboundLocalError（见 docs/chat-preview-test-report.md）
+        _get_realtime_prices = get_realtime_prices
         last_user = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
         pending = req.pending_trade
 
@@ -213,14 +220,13 @@ def chat_stream(req: ChatRequest):
         else:
             parsed = parse_trade_command(last_user)
 
-        if parsed and parsed.get("action") in ("add", "update", "remove") and parsed.get("confidence", 0) >= 60:
+        if parsed and parsed.get("action") in ("add", "update", "remove") and (parsed.get("confidence") or 0) >= 60:
             # 直接展示可编辑确认卡，不再反问
             cost_price = float(parsed.get("price", 0) or 0)
             if cost_price <= 0:
                 try:
-                    from pfa.portfolio_valuation import get_realtime_prices
                     fake_holding = [{"symbol": parsed.get("symbol", ""), "market": parsed.get("market", "A")}]
-                    prices = get_realtime_prices(fake_holding)
+                    prices = _get_realtime_prices(fake_holding)
                     p = prices.get(parsed.get("symbol", ""), {})
                     if p.get("current"):
                         cost_price = float(p["current"])
@@ -254,17 +260,24 @@ def chat_stream(req: ChatRequest):
         val = {"total_value_cny": 0, "total_pnl_cny": 0, "total_pnl_pct": 0, "holding_count": 0, "account_count": 0, "by_account": {}}
         if holdings:
             fx = get_fx_rates()
-            prices = get_realtime_prices(holdings)
+            prices = _get_realtime_prices(holdings)
             val = calculate_portfolio_value(holdings, prices, fx)
         system = build_system_prompt(holdings, val)
         full = [{"role": "system", "content": system}] + messages
 
         chunk_count = 0
+        assistant_full = ""
         for chunk in call_ai_stream(full):
             chunk_count += 1
+            assistant_full += chunk
             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
         if chunk_count == 0:
             yield f"data: {json.dumps({'type': 'chunk', 'content': 'AI 暂无回复，请检查 DASHSCOPE_API_KEY 或稍后重试。'}, ensure_ascii=False)}\n\n"
+        else:
+            last_user = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
+            impact = generate_impact_card_from_text(last_user, assistant_full)
+            if impact:
+                yield f"data: {json.dumps({'type': 'impact', 'payload': impact}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 
     return StreamingResponse(
@@ -272,3 +285,14 @@ def chat_stream(req: ChatRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/chat/fetch-links")
+def fetch_links_endpoint(req: FetchLinksRequest):
+    """抓取链接内容，用于对话上下文（新闻、研报等）。"""
+    from pfa.link_extractor import fetch_links
+
+    urls = [u for u in (req.urls or []) if isinstance(u, str) and u.strip()]
+    if not urls:
+        return {"results": []}
+    return fetch_links(urls)

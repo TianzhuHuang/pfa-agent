@@ -14,6 +14,16 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 PORTFOLIO_JSON = ROOT / "config" / "my-portfolio.json"
 
 
+def _safe_float(value: Any, default: float | None = None) -> float | None:
+    """将 value 转为 float；None、空字符串或无效值时返回 default。"""
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def _holding_to_dict(h: Holding) -> Dict:
     out = {
         "symbol": h.symbol,
@@ -90,18 +100,19 @@ def save_portfolio_db(data: Dict[str, Any], user_id: str = "admin") -> None:
             sym = str(h.get("symbol", "")).strip()
             if not sym:
                 continue
+            qty = _safe_float(h.get("quantity"), 0)
             db.add(Holding(
                 user_id=uid,
                 symbol=sym,
                 name=str(h.get("name", "")).strip() or None,
                 market=str(h.get("market", "A"))[:2] or "A",
-                quantity=float(h.get("quantity", 0) or 0),
-                cost_price=float(h["cost_price"]) if h.get("cost_price") is not None else None,
+                quantity=float(qty) if qty is not None else 0,
+                cost_price=_safe_float(h.get("cost_price")),
                 currency=h.get("currency"),
                 exchange=h.get("exchange"),
                 account=str(h.get("account", "默认")).strip() or "默认",
                 source=str(h.get("source", "manual")).strip() or "manual",
-                position_pct=float(h["position_pct"]) if h.get("position_pct") is not None else None,
+                position_pct=_safe_float(h.get("position_pct")),
                 memo_history=h.get("memo_history"),
                 ocr_confirmed=h.get("ocr_confirmed") if h.get("ocr_confirmed") is not None else None,
                 price_deviation_warn=h.get("price_deviation_warn") if h.get("price_deviation_warn") is not None else None,
@@ -117,7 +128,7 @@ def save_portfolio_db(data: Dict[str, Any], user_id: str = "admin") -> None:
                 base_currency=str(a.get("base_currency", a.get("currency", "CNY"))).strip().upper() or "CNY",
                 broker=str(a.get("broker", "")).strip() or None,
                 account_type=str(a.get("account_type", "股票")).strip() or "股票",
-                balance=float(a.get("balance", 0) or 0),
+                balance=float(_safe_float(a.get("balance"), 0) or 0),
             ))
         ch = data.get("channels", {})
         if ch:

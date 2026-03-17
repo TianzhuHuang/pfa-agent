@@ -41,22 +41,28 @@ SYSTEM_PERSONA = """你是 PFA 投研专家，一位资深股票策略分析师�
 
 def build_system_prompt(holdings: List[Dict], val: Dict) -> str:
     """Build system prompt with portfolio context."""
-    total_v = val.get("total_value_cny", 0)
-    total_pnl = val.get("total_pnl_cny", 0)
-    total_pct = val.get("total_pnl_pct", 0)
-    sign = "+" if total_pnl >= 0 else ""
+    total_v = val.get("total_value_cny") or 0
+    total_pnl = val.get("total_pnl_cny") or 0
+    total_pct = val.get("total_pnl_pct") or 0
+    sign = "+" if (total_pnl or 0) >= 0 else ""
 
     top_holdings = []
     for acct_data in val.get("by_account", {}).values():
         for h in acct_data.get("holdings", []):
+            pnl_cny = h.get("pnl_cny")
+            pnl_pct = h.get("pnl_pct")
+            if pnl_cny is None:
+                pnl_cny = 0
+            if pnl_pct is None:
+                pnl_pct = 0
             top_holdings.append({
                 "代码": h["symbol"],
                 "名称": h.get("name", ""),
                 "现价": h.get("current_price", ""),
                 "成本": h.get("cost_price", ""),
                 "数量": h.get("quantity", ""),
-                "盈亏": f"{'+' if h['pnl_cny']>=0 else ''}{h['pnl_cny']:,.0f}",
-                "涨跌": f"{'+' if h['pnl_pct']>=0 else ''}{h['pnl_pct']:.1f}%",
+                "盈亏": f"{'+' if pnl_cny >= 0 else ''}{pnl_cny:,.0f}",
+                "涨跌": f"{'+' if pnl_pct >= 0 else ''}{pnl_pct:.1f}%",
             })
 
     context = (
@@ -101,6 +107,40 @@ def call_ai_stream(messages: List[Dict]) -> Generator[str, None, None]:
                 pass
     except Exception as e:
         yield f"AI 服务暂不可用: {e}"
+
+
+def generate_impact_card_from_text(user_text: str, assistant_text: str) -> Optional[Dict[str, Any]]:
+    """Best-effort: summarize assistant output into a structured ImpactCard.
+
+    This is a Phase-1 local feature to enable UI ImpactCard rendering without changing the main answer style.
+    """
+    api_key = os.environ.get("DASHSCOPE_API_KEY")
+    if not api_key:
+        return None
+    prompt = f"""你是投研分析师。请把下面的回答提炼成一张“影响评估卡片”。\n\n用户问题：\n{user_text}\n\n助手回答：\n{assistant_text}\n\n请严格只输出 JSON（不要 markdown 代码块，不要额外文字），格式如下：\n{{\n  \"title\": \"一句话标题\",\n  \"summary\": \"2-4 句总结（可换行）\",\n  \"impacts\": [\n    {{\"symbol\": \"代码或BTC/ETH\", \"name\": \"名称\", \"level\": \"high|medium|low\", \"levelLabel\": \"高|中|低\", \"sentiment\": \"positive|negative|neutral\"}}\n  ]\n}}\n\n要求：\n- impacts 最多 5 条\n- 如果无法识别具体标的，就返回空数组 impacts=[]\n- levelLabel 用中文单字：高/中/低\n"""
+    try:
+        resp = requests.post(
+            DASHSCOPE_URL,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": "qwen-plus", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 500},
+            timeout=30,
+            proxies={"http": None, "https": None},
+        )
+        resp.raise_for_status()
+        content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "") or ""
+        content = content.strip().replace("```json", "").replace("```", "").strip()
+        data = json.loads(content)
+        if not isinstance(data, dict):
+            return None
+        impacts = data.get("impacts", [])
+        if impacts is None:
+            impacts = []
+        if not isinstance(impacts, list):
+            impacts = []
+        data["impacts"] = impacts[:5]
+        return data
+    except Exception:
+        return None
 
 
 def _is_valid_symbol(s: str) -> bool:
@@ -231,8 +271,8 @@ def execute_trade_payload(parsed: Dict[str, Any], user_input: str) -> str:
     action = parsed.get("action", "")
     sym = parsed.get("symbol", "")
     name = parsed.get("name", "")
-    qty = parsed.get("quantity", 0)
-    price = parsed.get("price", 0)
+    qty = parsed.get("quantity") if parsed.get("quantity") is not None else 0
+    price = parsed.get("price") if parsed.get("price") is not None else 0
     now_str = datetime.now(CST).isoformat()
     p = load_portfolio()
 
@@ -249,9 +289,9 @@ def execute_trade_payload(parsed: Dict[str, Any], user_input: str) -> str:
     elif action == "update":
         for h in p.get("holdings", []):
             if h["symbol"] == sym:
-                if qty >= 0:
+                if qty is not None and qty >= 0:
                     h["quantity"] = qty
-                if price > 0:
+                if price is not None and price > 0:
                     h["cost_price"] = price
                 h["updated_at"] = now_str
                 save_portfolio(p)
@@ -275,10 +315,10 @@ def execute_trade_payload(parsed: Dict[str, Any], user_input: str) -> str:
 
 def build_welcome_message(val: Dict) -> str:
     """Build initial welcome message for empty chat."""
-    total_v = val.get("total_value_cny", 0)
-    total_pnl = val.get("total_pnl_cny", 0)
-    total_pct = val.get("total_pnl_pct", 0)
-    sign = "+" if total_pnl >= 0 else ""
+    total_v = val.get("total_value_cny") or 0
+    total_pnl = val.get("total_pnl_cny") or 0
+    total_pct = val.get("total_pnl_pct") or 0
+    sign = "+" if (total_pnl or 0) >= 0 else ""
     return (
         f"👋 你好，我是你的 AI 投研助理。\n\n"
         f"当前总资产 **¥{total_v:,.0f}**，"

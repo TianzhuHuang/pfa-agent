@@ -12,6 +12,11 @@
   --pfa-accent: #1976d2;
   --pfa-up: #00e701;
   --pfa-down: #ff4e33;
+
+  /* PFA 2.0 Chat-Preview 静奢情绪（Quiet Luxury） */
+  --pfa-sentiment-positive: #748e63;   /* 鼠尾草绿 Sage Green */
+  --pfa-sentiment-negative: #c58b8b; /* 尘玫瑰 Dusty Rose；深珊瑚可用 #b85450 */
+  --pfa-sentiment-neutral: #d4af37;  /* 香槟金 */
 }
 
 @theme inline {

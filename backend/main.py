@@ -130,8 +130,8 @@ def _decode_supabase_jwt(token: str) -> str | None:
 
 @app.middleware("http")
 async def set_user_context(request, call_next):
-    """从 Authorization 头解析 user_id 并设置到 context，供 portfolio_store 等读取。"""
-    from backend.context import current_user_id
+    """从 Authorization 头解析 user_id；X-PFA-Local-Mode: 1 时强制使用本地存储。"""
+    from backend.context import current_user_id, force_local_storage
 
     user_id = "admin"
     auth = request.headers.get("Authorization")
@@ -145,11 +145,14 @@ async def set_user_context(request, call_next):
     elif auth:
         _log.debug("Authorization 头格式异常（非 Bearer）")
 
-    token = current_user_id.set(user_id)
+    local_mode = (request.headers.get("X-PFA-Local-Mode") or "").strip() == "1"
+    token_uid = current_user_id.set(user_id)
+    token_local = force_local_storage.set(local_mode)
     try:
         return await call_next(request)
     finally:
-        current_user_id.reset(token)
+        current_user_id.reset(token_uid)
+        force_local_storage.reset(token_local)
 
 app.include_router(portfolio.router, prefix="/api", tags=["portfolio"])
 # chat 路由需在 briefing 之前注册，避免 /api/analysis/{id} 等动态路由优先匹配

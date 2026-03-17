@@ -11,7 +11,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
-      className="min-h-[calc(100vh-48px)] bg-black"
+      className="min-h-[calc(100vh-48px)] bg-[#0A0F1E]"
     >
       {children}
     </motion.div>

@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${inter.variable} min-h-screen bg-black text-white antialiased`}>
+      <body className={`${inter.variable} min-h-screen bg-[#0A0F1E] text-white antialiased`}>
         <DisplayCurrencyProvider>
           <ColorSchemeProvider>
             <Header />

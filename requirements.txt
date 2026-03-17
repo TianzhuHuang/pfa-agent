@@ -7,6 +7,8 @@ sqlalchemy>=2.0.0
 jsonschema>=4.20.0
 # Phase 2: 数据抓取与深度分析（通义千问 via DashScope OpenAI-compatible API）
 requests>=2.31.0
+# 链接正文抽取（/api/chat/fetch-links）；可选，未安装时用简单 HTML 剥离
+trafilatura>=1.6.0
 # RSS 抓取
 feedparser>=6.0.0
 playwright>=1.40.0

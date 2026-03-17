@@ -121,7 +121,10 @@ export default function AnalysisPage() {
                     <YAxis type="category" dataKey="name" width={50} tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}
-                      formatter={(v: number | undefined) => [`${sym}${(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, "市值"]}
+                      formatter={(value) => {
+                        const n = typeof value === "number" ? value : Number(value) ?? 0;
+                        return [`${sym}${(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, "市值"];
+                      }}
                     />
                     <Bar dataKey="value" fill="#1976d2" radius={[0, 2, 2, 0]} maxBarSize={24} />
                   </BarChart>
@@ -153,7 +156,10 @@ export default function AnalysisPage() {
                       </Pie>
                       <Tooltip
                         contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}
-                        formatter={(v: number | undefined) => [`${sym}${(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, ""]}
+                        formatter={(value) => {
+                          const n = typeof value === "number" ? value : Number(value) ?? 0;
+                          return [`${sym}${(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, ""];
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>

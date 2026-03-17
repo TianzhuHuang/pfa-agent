@@ -3,6 +3,9 @@
 
 上传券商持仓截图，qwen-vl-plus 直接提取结构化持仓数据。
 比传统 OCR 准确率高，因为模型理解表格语义。
+
+可选扩展：新闻/文章类截图可接入本地 OCR（如 PaddleOCR）做快速正文提取，
+再由 qwen-plus 做摘要，以降低延迟；持仓表仍建议使用 qwen-vl-plus。
 """
 
 from __future__ import annotations
@@ -52,6 +55,51 @@ In addition to stocks, please look for cryptocurrency tickers like BTC, ETH, SOL
 - 如果是港股，market 填 "HK"，currency 填 "HKD"
 - 如果是美股，market 填 "US"，currency 填 "USD"
 - 只返回 JSON，不要返回 markdown 代码块或其他说明文字"""
+
+EXTRACT_NEWS_PROMPT = """请摘录图片中的主要文字内容（如新闻标题、正文要点、关键数据），用于对话上下文。
+要求：用中文、连贯的段落或要点列表；只返回文字内容，不要 JSON 或 markdown 标记。若图中无有效文字则返回「图中无文字内容」。"""
+
+
+def extract_text_from_image(
+    image_bytes: bytes,
+    mime_type: str = "image/png",
+) -> Dict[str, Any]:
+    """从图片中提取文字（新闻/文章截图），用于对话上下文。"""
+    api_key = os.environ.get("DASHSCOPE_API_KEY")
+    if not api_key:
+        return {"status": "error", "error": "DASHSCOPE_API_KEY 未设置", "text": ""}
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64}"
+    try:
+        resp = requests.post(
+            DASHSCOPE_VL_URL,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": VL_MODEL,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                            {"type": "text", "text": EXTRACT_NEWS_PROMPT},
+                        ],
+                    }
+                ],
+                "temperature": 0.2,
+                "max_tokens": 2000,
+            },
+            timeout=40,
+            proxies={"http": None, "https": None},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+    except Exception as e:
+        return {"status": "error", "error": str(e), "text": ""}
+    choices = body.get("choices", [])
+    if not choices:
+        return {"status": "error", "error": "模型返回空结果", "text": ""}
+    text = (choices[0].get("message", {}).get("content", "") or "").strip()
+    return {"status": "ok", "text": text}
 
 
 def image_to_base64(image_bytes: bytes) -> str:
@@ -124,7 +172,7 @@ def extract_holdings_from_image(
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
-            timeout=60,
+            timeout=40,
             proxies={"http": None, "https": None},  # 绕过系统代理，避免 ProxyError
         )
         resp.raise_for_status()
